@@ -5,8 +5,10 @@
 /.clang-tidy
 /.vs
 /out
+.DS_Store
 *.pbf
 test/monaco
 test/hamburg
 test/switzerland
 test/germany
+test/aachen

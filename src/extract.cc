@@ -34,6 +34,7 @@
 #include "osr/platforms.h"
 #include "osr/preprocessing/elevation/provider.h"
 #include "osr/ways.h"
+#include "osr/cch_preprocessing.h"
 
 namespace osm = osmium;
 namespace osm_io = osmium::io;
@@ -565,10 +566,13 @@ void extract(bool const with_platforms,
              fs::path const& elevation_dir) {
   auto ec = std::error_code{};
   fs::remove_all(out, ec);
+
+  // if no output directory exists yet, create one
   if (!fs::is_directory(out)) {
     fs::create_directories(out);
   }
 
+  // try to read in the input file into input_file with size file_size
   auto input_file = osm_io::File{};
   auto file_size = std::size_t{0U};
   try {
@@ -580,8 +584,10 @@ void extract(bool const with_platforms,
     throw;
   }
 
+  // return progress of the file reading operation to the user
   auto pt = utl::get_active_progress_tracker_or_activate("osr");
 
+  // create two temporary files to work with and combine the to node_idx hybrid file
   auto const node_idx_file =
       tiles::tmp_file{(out / "idx.bin").generic_string()};
   auto const node_dat_file =
@@ -589,7 +595,11 @@ void extract(bool const with_platforms,
   auto node_idx =
       tiles::hybrid_node_idx{node_idx_file.fileno(), node_dat_file.fileno()};
 
+  // generiere hier eine art hash map von hash_map<osm_way_idx_t, rel_way>, 
+  // wobei rel_way die way properties und platform enthält
   auto rel_ways = rel_ways_t{};
+
+  // kreiere ein ways object: -> ways.h
   auto w = ways{out, cista::mmap::protection::WRITE};
   auto pl = std::unique_ptr<platforms>{};
   if (with_platforms) {
@@ -695,6 +705,11 @@ void extract(bool const with_platforms,
 
   pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
   lookup{w, out, cista::mmap::protection::WRITE}.build_rtree();
+
+  // insert the metric independent preprocessing at the end of the extract step
+  pt->status("CCH metric-independent preprocessing").in_high(1).out_bounds(99, 100);
+  auto mip_proc_ = cch::mip_proc{w};
+  mip_proc_.build_contraction_order();
 }
 
 }  // namespace osr
