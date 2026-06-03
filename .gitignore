@@ -6,6 +6,7 @@
 /.vs
 /out
 .DS_Store
+/.vscode
 *.pbf
 test/monaco
 test/hamburg

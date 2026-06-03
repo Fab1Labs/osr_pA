@@ -709,7 +709,8 @@ void extract(bool const with_platforms,
   // insert the metric independent preprocessing at the end of the extract step
   pt->status("CCH metric-independent preprocessing").in_high(1).out_bounds(99, 100);
   auto mip_proc_ = cch::mip_proc{w};
-  mip_proc_.build_contraction_order();
+  //mip_proc_.build_contraction_order();
+  mip_proc_.find_neighbors(node_idx_t{563});
 }
 
 }  // namespace osr

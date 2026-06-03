@@ -8,13 +8,15 @@
 namespace cch {
 
 struct mip_proc {
-  mip_proc(osr::ways const&);
+  explicit mip_proc(osr::ways const&);
 
   void test_contraction_order();
   void build_contraction_order();
+  osr::vec<osr::node_idx_t> find_neighbors(osr::node_idx_t const&);
+  void add_shortcuts();
 
   osr::ways const& ways_;
-  osr::vec<osr::node_idx_t>contr_order_;
+  osr::vec<osr::node_idx_t> contr_order_;
 
 };
 
