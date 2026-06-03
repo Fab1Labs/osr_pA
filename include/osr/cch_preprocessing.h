@@ -2,6 +2,8 @@
 
 #include <numeric>
 
+#include "cista/containers/vector.h"
+
 #include "osr/ways.h"
 #include "osr/types.h"
 
@@ -13,6 +15,7 @@ struct mip_proc {
   void test_contraction_order();
   void build_contraction_order();
   osr::vec<osr::node_idx_t> find_neighbors(osr::node_idx_t const&);
+  bool check_importance(osr::node_idx_t const&, osr::node_idx_t const&);
   void add_shortcuts();
 
   osr::ways const& ways_;
