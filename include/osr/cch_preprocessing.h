@@ -3,6 +3,7 @@
 #include <numeric>
 
 #include "cista/containers/vector.h"
+#include "utl/enumerate.h"
 
 #include "osr/ways.h"
 #include "osr/types.h"
@@ -20,6 +21,7 @@ struct mip_proc {
 
   osr::ways const& ways_;
   osr::vec<osr::node_idx_t> contr_order_;
+  osr::vec<osr::node_idx_t> elimination_tree;
 
 };
 

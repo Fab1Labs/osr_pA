@@ -17,16 +17,15 @@ void cch::mip_proc::test_contraction_order() {
 // define the contraction order for the preprocessing here
 void cch::mip_proc::build_contraction_order() {
   contr_order_.resize(ways_.n_nodes());
-  auto i_ = 0;
-  for (auto const& node : ways_.r_->node_importance_) {
-    contr_order_[node] = osr::node_idx_t{i_};
-    ++i_;
+  for (auto const [i, node] : utl::enumerate(ways_.r_->node_importance_)) {
+    contr_order_[node] = osr::node_idx_t{i};
   }
 }
 
 osr::vec<osr::node_idx_t> cch::mip_proc::find_neighbors(osr::node_idx_t const& node) {
   osr::vec<osr::node_idx_t> neighbors_;
 
+  // check for existing neighbors
   auto const& in_ways_ = ways_.r_->node_ways_[node];
   auto const& idx_in_ways_ = ways_.r_->node_in_way_idx_[node];
   if (in_ways_.empty() && idx_in_ways_.empty()) {return neighbors_;}
@@ -51,6 +50,6 @@ osr::vec<osr::node_idx_t> cch::mip_proc::find_neighbors(osr::node_idx_t const& n
 }
 
 bool cch::mip_proc::check_importance(osr::node_idx_t const& lhs, osr::node_idx_t const& rhs) {
-  std::cout << "Importance lhs: " << ways_.r_->node_importance_[lhs] << " Importance rhs: " << ways_.r_->node_importance_[rhs] << "\n";
+  //std::cout << "Importance lhs: " << ways_.r_->node_importance_[lhs] << " Importance rhs: " << ways_.r_->node_importance_[rhs] << "\n";
   return ways_.r_->node_importance_[lhs] < ways_.r_->node_importance_[rhs];
 }
