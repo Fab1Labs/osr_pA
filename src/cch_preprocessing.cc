@@ -34,11 +34,11 @@ osr::vec<osr::node_idx_t> cch::mip_proc::find_neighbors(osr::node_idx_t const& n
   for (auto const [idx, way] : utl::zip(idx_in_ways_, in_ways_)) {
     if (idx > 0) {
       auto const& pred = ways_.r_->way_nodes_[way][idx - 1];
-      if (check_importance(node, pred)) {neighbors_.push_back(pred);}
+      if (check_importance(node, pred) && !neighbors_.contains(pred)) {neighbors_.push_back(pred);}
     }
     if (idx < ways_.r_->way_nodes_.size() - 1) {
       auto const& succ = ways_.r_->way_nodes_[way][idx + 1];
-      if (check_importance(node, succ)) {neighbors_.push_back(succ);}
+      if (check_importance(node, succ) && !neighbors_.contains(succ)) {neighbors_.push_back(succ);}
     }
   }
 
@@ -50,33 +50,55 @@ osr::vec<osr::node_idx_t> cch::mip_proc::find_neighbors(osr::node_idx_t const& n
 }
 
 bool cch::mip_proc::check_importance(osr::node_idx_t const& lhs, osr::node_idx_t const& rhs) {
-  //std::cout << "Importance lhs: " << ways_.r_->node_importance_[lhs] << " Importance rhs: " << ways_.r_->node_importance_[rhs] << "\n";
   return ways_.r_->node_importance_[lhs] < ways_.r_->node_importance_[rhs];
 }
 
-void cch::mip_proc::find_smallest_neighbor(osr::vec<osr::node_idx_t> const& neighbors) {
+std::uint32_t cch::mip_proc::find_smallest_neighbor(osr::vec<osr::node_idx_t> const& neighbors) {
   osr::vec<std::uint32_t> neighbor_ranks_;
   for (auto const node : neighbors) {
     neighbor_ranks_.push_back(ways_.r_->node_importance_[node]);
     std::cout << node << ": " << ways_.r_->node_importance_[node] << "\n";
   }
   auto const& min_rank_ = std::ranges::min(neighbor_ranks_);
-  std::cout << "neighbor with smallest rank: " << min_rank_;
+  std::cout << "neighbor with smallest rank: " << min_rank_ << "\n";
+  return min_rank_;
 }
 
+
+void cch::mip_proc::perform_contraction() {
+  build_contraction_order();
+  elimination_tree_.resize(ways_.n_nodes());
+
+  contr_order_.resize(5);
+  elimination_tree_.resize(5);
+  for (auto const [rank, node] : utl::enumerate(contr_order_)) {
+    std::cout << "\n" << "=== node " << node << " with rank " << ways_.r_->node_importance_[node] << " ===" << "\n";
+    auto const& neighbors_ = find_neighbors(node);
+
+    if (neighbors_.empty()) {
+      elimination_tree_[rank] = rank;
+      continue;
+    }
+
+    elimination_tree_[rank] = find_smallest_neighbor(neighbors_);
+  }
+
+  std::cout << "elimination tree: ";
+  for (auto const e : elimination_tree_) {std::cout << e << " ";}
+  std::cout << "\n";
+}
 // void cch::mip_proc::perform_contraction() {
 //   build_contraction_order();
 //   elimination_tree_.resize(ways_.n_nodes());
-//   g_plus_up_.neighbors_.resize(ways_)
 
 //   //contr_order_.resize(5);
 //   for (auto const [rank, node] : utl::enumerate(contr_order_)) {
 
 //     std::cout << "=== node " << node << " with rank " << ways_.r_->node_importance_[node] << " ===" << "\n";
 
-//     g_plus_up_.neighbors_[rank] = find_neighbors(node);
-//     //auto const& neighbors_ = find_neighbors(node);
-//     if (g_plus_up_.neighbors_[rank].empty()) {
+//     //g_plus_up_.neighbors_[rank] = find_neighbors(node);
+//     auto const& neighbors_ = find_neighbors(node);
+//     if (neighbors_.empty()) {
 //       //elimination_tree_[rank] = nullptr;
 //       continue;
 //     }
