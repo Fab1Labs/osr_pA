@@ -4,6 +4,19 @@
 
 #include "osr/ways.h"
 
+cch::neighborhood::neighborhood(osr::node_idx_t const& node, std::uint32_t const& rank) 
+  : node_{node},
+  rank_{rank} {}
+
+void cch::neighborhood::add_neighbor(osr::node_idx_t const& node, std::uint32_t const& rank) {
+  neighbors_.push_back(std::pair(node, rank));
+}
+
+void cch::neighborhood::sort_neighbors() {
+  std::sort(neighbors_.begin(), neighbors_.end(), [](auto const& lhs, auto const& rhs) {
+    return lhs.second < rhs.second;
+  });
+}
 
 cch::mip_proc::mip_proc(osr::ways const& w)// std::filesystem::path p, cista::mmap::protection const mode)
   : ways_{w} {}
@@ -31,7 +44,6 @@ bool cch::mip_proc::is_in(osr::vec<osr::node_idx_t> const& neighbors, osr::node_
 bool cch::mip_proc::check_importance(osr::node_idx_t const& lhs, osr::node_idx_t const& rhs) {
   return ways_.r_->node_importance_[lhs] < ways_.r_->node_importance_[rhs];
 }
-  
 
 osr::vec<osr::node_idx_t> cch::mip_proc::find_neighbors(osr::node_idx_t const& node) {
   osr::vec<osr::node_idx_t> neighbors_;
@@ -53,7 +65,6 @@ osr::vec<osr::node_idx_t> cch::mip_proc::find_neighbors(osr::node_idx_t const& n
     }
   }
 
-  //g_plus_up_.neighbors_[rank] = neighbors_;
   std::cout << "neigbors of node " << node << ": ";
   for (auto const& n : neighbors_){std::cout << n << " ";}
   std::cout << "\n";
@@ -61,40 +72,31 @@ osr::vec<osr::node_idx_t> cch::mip_proc::find_neighbors(osr::node_idx_t const& n
   return neighbors_;
 }
 
-std::uint32_t cch::mip_proc::find_smallest_neighbor(osr::vec<osr::node_idx_t> const& neighbors) {
-  osr::vec<std::uint32_t> neighbor_ranks_;
-  for (auto const node : neighbors) {
-    neighbor_ranks_.push_back(ways_.r_->node_importance_[node]);
-    std::cout << node << ": " << ways_.r_->node_importance_[node] << "\n";
-  }
-  auto const& min_rank_ = std::ranges::min(neighbor_ranks_);
-  std::cout << "neighbor with smallest rank: " << min_rank_ << "\n";
-  return min_rank_;
-}
-
-
 void cch::mip_proc::perform_contraction() {
   build_contraction_order();
   elimination_tree_.resize(ways_.n_nodes());
-  //osr::vec<edge_idx_t> tmp_edges_;
 
   contr_order_.resize(5);
   elimination_tree_.resize(5);
   for (auto const [rank, node] : utl::enumerate(contr_order_)) {
     std::cout << "\n" << "=== node " << node << " with rank " << ways_.r_->node_importance_[node] << " ===" << "\n";
+    all_neighbors_.push_back(neighborhood(node, rank));
     auto const& neighbors_ = find_neighbors(node);
+    
+    for (auto const n : neighbors_) {all_neighbors_[rank].add_neighbor(n, ways_.r_->node_importance_[n]);}
+    all_neighbors_[rank].sort_neighbors();
+
 
     if (neighbors_.empty()) {
       elimination_tree_[rank] = rank;
-      continue;
+    } else {
+      elimination_tree_[rank] = all_neighbors_[rank].neighbors_[0].second;
     }
-    
-    // for (auto const& n : neighbors_) {
-    //   tmp_edges_.push_back(edge_idx_t{node, n, false, })
-    // }
-    elimination_tree_[rank] = find_smallest_neighbor(neighbors_);
-  }
 
+    std::cout << "neighborhood of node " << node << "\n";
+    for (auto const n : all_neighbors_[rank].neighbors_) {std::cout << "neighbor node: " << n.first << ", rank: " << n.second << "\n";}
+  }
+  
   std::cout << "elimination tree: ";
   for (auto const e : elimination_tree_) {std::cout << e << " ";}
   std::cout << "\n";
