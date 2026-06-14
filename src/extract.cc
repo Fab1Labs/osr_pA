@@ -711,9 +711,6 @@ void extract(bool const with_platforms,
   auto mip_proc_ = cch::mip_proc{w};
   mip_proc_.build_contraction_order();
   mip_proc_.init_neighborhoods();
-  //mip_proc_.perform_contraction();
-  // auto const& neighbors_ = mip_proc_.find_neighbors(osr::node_idx_t{12});
-  // if (!neighbors_.empty()) {mip_proc_.find_smallest_neighbor(neighbors_);}
 }
 
 }  // namespace osr

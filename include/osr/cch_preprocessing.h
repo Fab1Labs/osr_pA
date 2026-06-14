@@ -2,7 +2,6 @@
 
 #include <numeric>
 #include <algorithm>
-#include <typeinfo>
 #include <utility>
 
 #include "cista/containers/vector.h"
@@ -20,7 +19,7 @@ struct neighborhood {
   void add_neighbors(osr::vec<osr::node_idx_t> const& neighbors, osr::vec_map<osr::node_idx_t, std::uint32_t> const& ranks);
   void sort_neighbors();
   void filter_higher_neighbors();
-  void concatenate_neighbors(neighborhood);
+  void concatenate(osr::vec<std::pair<osr::node_idx_t, std::uint32_t>> const& neighbors);
 
   osr::node_idx_t const& node_;
   std::uint32_t const& rank_;

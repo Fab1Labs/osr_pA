@@ -17,10 +17,14 @@ void cch::neighborhood::add_neighbors(osr::vec<osr::node_idx_t> const& neighbors
 
 void cch::neighborhood::sort_neighbors() {
   if (neighbors_.empty()) {return;}
-  //sort by increasing rank 
-  std::sort(neighbors_.begin(), neighbors_.end(), [](auto const& lhs, auto const& rhs) {
-    return lhs.second < rhs.second; // source: https://stackoverflow.com/questions/23816797/how-does-stdsort-work-for-list-of-pairs#23817006 11.06.2026
-  });
+
+  //sort by increasing rank
+  auto sorting_condition = [](auto const& lhs, auto const& rhs) {return lhs.second < rhs.second;}; //source: https://stackoverflow.com/questions/23816797/how-does-stdsort-work-for-list-of-pairs#23817006 11.06.2026
+  std::sort(neighbors_.begin(), neighbors_.end(), sorting_condition);
+
+  // filter duplicates
+  auto last_s = std::unique(neighbors_.begin(), neighbors_.end());
+  neighbors_.erase(last_s, neighbors_.end());
 }
 
 void cch::neighborhood::filter_higher_neighbors() {
@@ -32,10 +36,12 @@ void cch::neighborhood::filter_higher_neighbors() {
   }), neighbors_.end());
 }
 
-void cch::neighborhood::concatenate_neighbors(neighborhood target) {
-  if (neighbors_.empty()) {return;}
+void cch::neighborhood::concatenate(osr::vec<std::pair<osr::node_idx_t, std::uint32_t>> const& new_neighbors) {
+  if (new_neighbors.empty()) {return;}
 
-  for (auto const& n : neighbors_) {target.neighbors_.push_back(n);}
+  for (auto const& n : new_neighbors) {
+    if (n.second > rank_) {neighbors_.push_back(n);}
+  }
 }
 
 cch::mip_proc::mip_proc(osr::ways const& w)
@@ -89,6 +95,15 @@ void cch::mip_proc::init_neighborhoods() {
   for (auto const& [rank, node] : utl::enumerate(contr_order_)) {
     all_neighbors_.push_back(neighborhood{node, static_cast<std::uint32_t>(rank)});
     all_neighbors_[rank].add_neighbors(find_neighbors(node), ways_.r_->node_importance_);
+  }
+
+  // contract the neighbors by adding neighborhood to least higher neighbor
+  for (auto& n : all_neighbors_) {
+    if (n.neighbors_.empty()) {continue;}
+
+    n.sort_neighbors();
+    auto& next = all_neighbors_[n.neighbors_[0].second];
+    next.concatenate(n.neighbors_);
   }
 }
 
