@@ -6,26 +6,40 @@
 
 cch::neighborhood::neighborhood(osr::node_idx_t const& node, std::uint32_t const& rank) 
   : node_{node},
-  rank_{rank} {}
+    rank_{rank} {}
 
-void cch::neighborhood::add_neighbor(osr::node_idx_t const& node, std::uint32_t const& rank) {
-  neighbors_.push_back(std::pair(node, rank));
+void cch::neighborhood::add_neighbors(osr::vec<osr::node_idx_t> const& neighbors, osr::vec_map<osr::node_idx_t, std::uint32_t> const& ranks) {
+  if (neighbors.empty()) {return;}
+  for (auto const& n : neighbors) {
+    neighbors_.push_back(std::pair(n, ranks[n]));
+  }
 }
 
 void cch::neighborhood::sort_neighbors() {
+  if (neighbors_.empty()) {return;}
+  //sort by increasing rank 
   std::sort(neighbors_.begin(), neighbors_.end(), [](auto const& lhs, auto const& rhs) {
-    return lhs.second < rhs.second;
+    return lhs.second < rhs.second; // source: https://stackoverflow.com/questions/23816797/how-does-stdsort-work-for-list-of-pairs#23817006 11.06.2026
   });
 }
 
-cch::mip_proc::mip_proc(osr::ways const& w)// std::filesystem::path p, cista::mmap::protection const mode)
-  : ways_{w} {}
+void cch::neighborhood::filter_higher_neighbors() {
 
-void cch::mip_proc::test_contraction_order() {
-  auto importance_copy_ = ways_.r_->node_importance_;
-  importance_copy_.resize(20);
-  for (auto const& [i, e] : utl::enumerate(importance_copy_)) {std::cout << e << " " << contr_order_[e] << " " << contr_order_[i] << " " << ways_.r_->node_importance_[osr::node_idx_t{i}] << "\n";}
+  if (neighbors_.empty()) {return;}
+
+  neighbors_.erase(std::remove_if(neighbors_.begin(), neighbors_.end(), [this](auto const& n) {
+    return n.second <= this->rank_;
+  }), neighbors_.end());
 }
+
+void cch::neighborhood::concatenate_neighbors(neighborhood target) {
+  if (neighbors_.empty()) {return;}
+
+  for (auto const& n : neighbors_) {target.neighbors_.push_back(n);}
+}
+
+cch::mip_proc::mip_proc(osr::ways const& w)
+  : ways_{w} {}
 
 // define the contraction order for the preprocessing here
 void cch::mip_proc::build_contraction_order() {
@@ -65,39 +79,56 @@ osr::vec<osr::node_idx_t> cch::mip_proc::find_neighbors(osr::node_idx_t const& n
     }
   }
 
-  std::cout << "neigbors of node " << node << ": ";
-  for (auto const& n : neighbors_){std::cout << n << " ";}
-  std::cout << "\n";
-
   return neighbors_;
 }
 
-void cch::mip_proc::perform_contraction() {
-  build_contraction_order();
-  elimination_tree_.resize(ways_.n_nodes());
+void cch::mip_proc::init_neighborhoods() {
+  if (contr_order_.empty()) {return;}
 
-  contr_order_.resize(5);
-  elimination_tree_.resize(5);
-  for (auto const [rank, node] : utl::enumerate(contr_order_)) {
-    std::cout << "\n" << "=== node " << node << " with rank " << ways_.r_->node_importance_[node] << " ===" << "\n";
-    all_neighbors_.push_back(neighborhood(node, rank));
-    auto const& neighbors_ = find_neighbors(node);
-    
-    for (auto const n : neighbors_) {all_neighbors_[rank].add_neighbor(n, ways_.r_->node_importance_[n]);}
-    all_neighbors_[rank].sort_neighbors();
-
-
-    if (neighbors_.empty()) {
-      elimination_tree_[rank] = rank;
-    } else {
-      elimination_tree_[rank] = all_neighbors_[rank].neighbors_[0].second;
-    }
-
-    std::cout << "neighborhood of node " << node << "\n";
-    for (auto const n : all_neighbors_[rank].neighbors_) {std::cout << "neighbor node: " << n.first << ", rank: " << n.second << "\n";}
+  //init the neighborhoods from the initial osr graph
+  for (auto const& [rank, node] : utl::enumerate(contr_order_)) {
+    all_neighbors_.push_back(neighborhood{node, static_cast<std::uint32_t>(rank)});
+    all_neighbors_[rank].add_neighbors(find_neighbors(node), ways_.r_->node_importance_);
   }
-  
-  std::cout << "elimination tree: ";
-  for (auto const e : elimination_tree_) {std::cout << e << " ";}
-  std::cout << "\n";
 }
+
+// void cch::mip_proc::perform_contraction() {
+//   build_contraction_order();
+//   elimination_tree_.resize(ways_.n_nodes());
+
+//   contr_order_.resize(12);
+//   elimination_tree_.resize(12);
+
+//   // init all neighborhoods
+//   for (auto const& [rank, node] : utl::enumerate(contr_order_)) {
+//     //std::cout << "\n" << "=== node " << node << " with rank " << rank << " ===" << "\n";
+//     all_neighbors_.push_back(neighborhood{node, static_cast<std::uint32_t>(rank)});
+//     auto const& neighbors_ = find_neighbors(node);
+//     for (auto const n : neighbors_) {all_neighbors_[rank].add_neighbor(n, ways_.r_->node_importance_[n]);}
+
+//     if (neighbors_.empty()) {
+//       elimination_tree_[rank] = rank;
+//     } else {
+//       elimination_tree_[rank] = all_neighbors_[rank].neighbors_[0].second;
+//     }
+//   }
+
+//   // contract
+//   for (auto& curr : all_neighbors_) {
+//     curr.sort_neighbors();
+//     if (curr.neighbors_.empty()) {continue;}
+
+//     curr.filter_higher_neighbors();
+
+//     auto const& next_rank_ = curr.neighbors_[0].second;
+//     curr.concatenate_neighbors(all_neighbors_[next_rank_]);
+
+//     //std::cout << "new neighborhood of node " << curr.node_ << "\n";
+//     //for (auto const n : curr.neighbors_) {std::cout << "neighbor node: " << n.first << ", rank: " << n.second << "\n";}
+
+//   }
+  
+//   // std::cout << "elimination tree: ";
+//   // for (auto const e : elimination_tree_) {std::cout << e << " ";}
+//   // std::cout << "\n";
+// }
