@@ -8,13 +8,6 @@ cch::neighborhood::neighborhood(osr::node_idx_t const& node, std::uint32_t const
   : node_{node},
     rank_{rank} {}
 
-void cch::neighborhood::add_neighbors(osr::vec<osr::node_idx_t> const& neighbors, osr::vec_map<osr::node_idx_t, std::uint32_t> const& ranks) {
-  if (neighbors.empty()) {return;}
-  for (auto const& n : neighbors) {
-    neighbors_.push_back(std::pair(n, ranks[n]));
-  }
-}
-
 void cch::neighborhood::sort_neighbors() {
   if (neighbors_.empty()) {return;}
 
@@ -66,7 +59,6 @@ bool cch::mip_proc::check_importance(osr::node_idx_t const& lhs, osr::node_idx_t
 }
 
 void cch::mip_proc::find_neighbors(cch::neighborhood& neighborhood) {
-  //osr::vec<osr::node_idx_t> neighbors_;
 
   // check for existing neighbors
   auto const& in_ways_ = ways_.r_->node_ways_[neighborhood.node_];
@@ -94,7 +86,6 @@ void cch::mip_proc::init_neighborhoods() {
   //init the neighborhoods from the initial osr graph
   for (auto const& [rank, node] : utl::enumerate(contr_order_)) {
     all_neighbors_.push_back(neighborhood{node, static_cast<std::uint32_t>(rank)});
-    //all_neighbors_[rank].add_neighbors(find_neighbors(node), ways_.r_->node_importance_);
     find_neighbors(all_neighbors_[rank]);
   }
 
