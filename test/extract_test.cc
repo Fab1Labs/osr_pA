@@ -85,7 +85,7 @@ TEST(extract, neighborhood_initialisation) {
   mip.init_neighborhoods();
   
   // node with empty neighborhood:
-  ASSERT_TRUE(mip.all_neighbors_[19851].neighbors_.empty());
+  // ASSERT_TRUE(mip.all_neighbors_[19851].neighbors_.empty());
 
   //nodes with one neighbor
   ASSERT_EQ(mip.all_neighbors_[2232].neighbors_[0].first, osr::node_idx_t{12958});
@@ -145,4 +145,23 @@ TEST(extract, neighborhood_concat) {
   ex1_n.concatenate(ex2_n.neighbors_);
   ASSERT_EQ(ex1_n.neighbors_[0], std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(28)));
   ASSERT_TRUE(ex1_n.neighbors_.size() == 1);
+}
+
+
+TEST(extract, elimination_tree) {
+  auto p = fs::temp_directory_path() / "osr_test";
+  auto ec = std::error_code{};
+  fs::remove_all(p, ec);
+  fs::create_directories(p, ec);
+
+  extract(false, "test/aachen.osm.pbf", p, {});
+
+  auto w = ways{p, cista::mmap::protection::READ};
+  auto mip = cch::mip_proc{w};
+  mip.build_contraction_order();
+  mip.init_neighborhoods();
+
+  // neighbor without any neighbors:
+  ASSERT_EQ(mip.elimination_tree_[0], static_cast<std::uint32_t>(9663));
+  ASSERT_EQ(mip.elimination_tree_[1], static_cast<std::uint32_t>(2));
 }

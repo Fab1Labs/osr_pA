@@ -84,19 +84,25 @@ void cch::mip_proc::init_neighborhoods() {
   if (contr_order_.empty()) {return;}
 
   //init the neighborhoods from the initial osr graph
-  for (auto const& [rank, node] : utl::enumerate(contr_order_)) {
+  for (auto const [rank, node] : utl::enumerate(contr_order_)) {
     all_neighbors_.push_back(neighborhood{node, static_cast<std::uint32_t>(rank)});
     find_neighbors(all_neighbors_[rank]);
   }
 
   // contract the neighbors by adding neighborhood to least higher neighbor
   for (auto& n : all_neighbors_) {
-    if (n.neighbors_.empty()) {continue;}
+    if (n.neighbors_.empty()) {
+      elimination_tree_.push_back(static_cast<std::uint32_t>(n.rank_));
+      continue;}
 
     n.sort_neighbors();
     auto& next = all_neighbors_[n.neighbors_[0].second];
     next.concatenate(n.neighbors_);
+    elimination_tree_.push_back(static_cast<std::uint32_t>(next.rank_));
   }
+
+  //for (std::size_t i = 0; i < 5; ++i) {std::cout << "node " << all_neighbors_[i].node_ << " with smallest neighbor " << all_neighbors_[i].neighbors_[0].second << "\n";}
+  return;
 }
 
 // void cch::mip_proc::perform_contraction() {

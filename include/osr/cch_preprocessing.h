@@ -20,8 +20,8 @@ struct neighborhood {
   void filter_higher_neighbors();
   void concatenate(osr::vec<std::pair<osr::node_idx_t, std::uint32_t>> const& neighbors);
 
-  osr::node_idx_t const& node_;
-  std::uint32_t const& rank_;
+  osr::node_idx_t const node_;
+  std::uint32_t const rank_;
   osr::vec<std::pair<osr::node_idx_t, std::uint32_t>> neighbors_;
 };
 
