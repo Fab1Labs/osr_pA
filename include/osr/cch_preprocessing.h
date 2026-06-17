@@ -31,9 +31,9 @@ struct mip_proc {
 
   void test_contraction_order();
   void build_contraction_order();
-  osr::vec<osr::node_idx_t> find_neighbors(osr::node_idx_t const&);
+  void find_neighbors(cch::neighborhood&);
   bool check_importance(osr::node_idx_t const&, osr::node_idx_t const&);
-  bool is_in(osr::vec<osr::node_idx_t> const&, osr::node_idx_t const&);
+  bool is_in(osr::vec<std::pair<osr::node_idx_t, std::uint32_t>> const&, osr::node_idx_t const&);
   void init_neighborhoods();
 
   osr::ways const& ways_;

@@ -55,9 +55,9 @@ void cch::mip_proc::build_contraction_order() {
   }
 }
 
-bool cch::mip_proc::is_in(osr::vec<osr::node_idx_t> const& neighbors, osr::node_idx_t const& node) {
+bool cch::mip_proc::is_in(osr::vec<std::pair<osr::node_idx_t, std::uint32_t>> const& neighbors, osr::node_idx_t const& node) {
   bool is_in_ = false;
-  for (auto const& n : neighbors) {is_in_ = is_in_ or node == n;}
+  for (auto const& n : neighbors) {is_in_ = is_in_ or node == n.first;}
   return is_in_;
 }
 
@@ -65,27 +65,27 @@ bool cch::mip_proc::check_importance(osr::node_idx_t const& lhs, osr::node_idx_t
   return ways_.r_->node_importance_[lhs] < ways_.r_->node_importance_[rhs];
 }
 
-osr::vec<osr::node_idx_t> cch::mip_proc::find_neighbors(osr::node_idx_t const& node) {
-  osr::vec<osr::node_idx_t> neighbors_;
+void cch::mip_proc::find_neighbors(cch::neighborhood& neighborhood) {
+  //osr::vec<osr::node_idx_t> neighbors_;
 
   // check for existing neighbors
-  auto const& in_ways_ = ways_.r_->node_ways_[node];
-  auto const& idx_in_ways_ = ways_.r_->node_in_way_idx_[node];
-  if (in_ways_.empty() && idx_in_ways_.empty()) {return neighbors_;}
+  auto const& in_ways_ = ways_.r_->node_ways_[neighborhood.node_];
+  auto const& idx_in_ways_ = ways_.r_->node_in_way_idx_[neighborhood.node_];
+  if (in_ways_.empty() && idx_in_ways_.empty()) {return;}
 
   // add existing neighbors with higher rank
   for (auto const [idx, way] : utl::zip(idx_in_ways_, in_ways_)) {
     if (idx > 0) {
       auto const& pred_ = ways_.r_->way_nodes_[way][idx - 1];
-      if (check_importance(node, pred_) && !is_in(neighbors_, pred_)) {neighbors_.push_back(pred_);}
+      if (check_importance(neighborhood.node_, pred_) && !is_in(neighborhood.neighbors_, pred_)) {neighborhood.neighbors_.push_back(std::pair(pred_, ways_.r_->node_importance_[pred_]));}
     }
     if (idx < ways_.r_->way_nodes_.size() - 1) {
       auto const& succ_ = ways_.r_->way_nodes_[way][idx + 1];
-      if (check_importance(node, succ_) && !is_in(neighbors_, succ_)) {neighbors_.push_back(succ_);}
+      if (check_importance(neighborhood.node_, succ_) && !is_in(neighborhood.neighbors_, succ_)) {neighborhood.neighbors_.push_back(std::pair(succ_, ways_.r_->node_importance_[succ_]));}
     }
   }
 
-  return neighbors_;
+  return;
 }
 
 void cch::mip_proc::init_neighborhoods() {
@@ -94,7 +94,8 @@ void cch::mip_proc::init_neighborhoods() {
   //init the neighborhoods from the initial osr graph
   for (auto const& [rank, node] : utl::enumerate(contr_order_)) {
     all_neighbors_.push_back(neighborhood{node, static_cast<std::uint32_t>(rank)});
-    all_neighbors_[rank].add_neighbors(find_neighbors(node), ways_.r_->node_importance_);
+    //all_neighbors_[rank].add_neighbors(find_neighbors(node), ways_.r_->node_importance_);
+    find_neighbors(all_neighbors_[rank]);
   }
 
   // contract the neighbors by adding neighborhood to least higher neighbor
