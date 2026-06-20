@@ -71,7 +71,7 @@ TEST(extract, contraction_order) {
   ASSERT_TRUE(eq);
 }
 
-TEST(extract, neighborhood_initialisation) {
+TEST(extract, init_neighborhoods) {
   auto p = fs::temp_directory_path() / "osr_test";
   auto ec = std::error_code{};
   fs::remove_all(p, ec);
@@ -83,26 +83,28 @@ TEST(extract, neighborhood_initialisation) {
   auto mip = cch::mip_proc{w};
   mip.build_contraction_order();
   mip.init_neighborhoods();
-  
-  // node with empty neighborhood:
-  // ASSERT_TRUE(mip.all_neighbors_[19851].neighbors_.empty());
 
-  //nodes with one neighbor
-  ASSERT_EQ(mip.all_neighbors_[2232].neighbors_[0].first, osr::node_idx_t{12958});
-  ASSERT_EQ(mip.all_neighbors_[2232].neighbors_.size(), 1);
+  // Test empty neighborhood: Well at the "Aachen" name on the map
+  ASSERT_EQ(mip.all_neighbors_[19851].node_, osr::node_idx_t{7884});
+  ASSERT_TRUE(mip.all_neighbors_[19851].neighbors_.empty());
 
-  ASSERT_EQ(mip.all_neighbors_[14331].neighbors_.size(), 1);
-  ASSERT_EQ(mip.all_neighbors_[14331].neighbors_[0].first, osr::node_idx_t{17799});
+  // Test neighborhood with one higher neighbor: Aachen - Dennewartstrasse
+  ASSERT_EQ(mip.all_neighbors_[1685].node_, osr::node_idx_t{17169});
+  ASSERT_EQ(mip.all_neighbors_[1685].neighbors_.size(), 1);
+  ASSERT_EQ(mip.all_neighbors_[1685].neighbors_[0], std::tuple(osr::node_idx_t{17170}, static_cast<std::uint32_t>(1686), false, osr::node_idx_t{17170}, osr::way_idx_t{13036}, osr::way_idx_t{13036}));
 
-  // bigger neighborhood
-  osr::vec<std::pair<osr::node_idx_t, std::uint32_t>> ex1_neighbors_;
-  ex1_neighbors_.push_back(std::pair(osr::node_idx_t{16699}, static_cast<std::uint32_t>(15387)));
-  ex1_neighbors_.push_back(std::pair(osr::node_idx_t{14342}, static_cast<std::uint32_t>(15388)));
-  //for (auto const& n : ex1_neighbors_) {ASSERT_EQ(std::count(mip.all_neighbors_[15383].neighbors_.begin(), mip.all_neighbors_[15383].neighbors_.end(), n), 1);}
-  ASSERT_EQ(mip.all_neighbors_[15383].neighbors_, ex1_neighbors_);
+  // Test neighborhood with multiple neighbors: Aachen - Gabelung Büchel
+  ASSERT_EQ(mip.all_neighbors_[14241].node_, osr::node_idx_t{14653});
+  ASSERT_EQ(mip.all_neighbors_[14245].node_, osr::node_idx_t{2761});
+  ASSERT_EQ(mip.all_neighbors_[14251].node_, osr::node_idx_t{201});
+  ASSERT_EQ(mip.all_neighbors_[14283].node_, osr::node_idx_t{200});
+  ASSERT_EQ(mip.all_neighbors_[14241].neighbors_[0], std::tuple(osr::node_idx_t{201}, static_cast<std::uint32_t>(14251), false, osr::node_idx_t{201}, osr::way_idx_t{6255}, osr::way_idx_t{6255}));
+  ASSERT_EQ(mip.all_neighbors_[14241].neighbors_[1], std::tuple(osr::node_idx_t{2761}, static_cast<std::uint32_t>(14245), false, osr::node_idx_t{2761}, osr::way_idx_t{6255}, osr::way_idx_t{6255}));
+  ASSERT_EQ(mip.all_neighbors_[14241].neighbors_[2], std::tuple(osr::node_idx_t{200}, static_cast<std::uint32_t>(14283), false, osr::node_idx_t{200}, osr::way_idx_t{10495}, osr::way_idx_t{10495}));
+
 }
 
-TEST(extract, neighborhood_filter) {
+TEST(extract, sort_neighbors) {
   auto p = fs::temp_directory_path() / "osr_test";
   auto ec = std::error_code{};
   fs::remove_all(p, ec);
@@ -111,41 +113,41 @@ TEST(extract, neighborhood_filter) {
   extract(false, "test/aachen.osm.pbf", p, {});
 
   auto ex1_n = cch::neighborhood{osr::node_idx_t{3}, static_cast<std::uint32_t>(23)};
-  ex1_n.neighbors_.push_back(std::pair(osr::node_idx_t{1}, static_cast<std::uint32_t>(36)));
-  ex1_n.neighbors_.push_back(std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(28)));
-  ex1_n.neighbors_.push_back(std::pair(osr::node_idx_t{4}, static_cast<std::uint32_t>(27)));
-  ex1_n.neighbors_.push_back(std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(28)));
+  ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{1}, static_cast<std::uint32_t>(36), false, osr::node_idx_t{3}, osr::way_idx_t{1}, osr::way_idx_t{1}));
+  ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{2}, static_cast<std::uint32_t>(28), false, osr::node_idx_t{3}, osr::way_idx_t{2}, osr::way_idx_t{2}));
+  ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{4}, static_cast<std::uint32_t>(27), false, osr::node_idx_t{3}, osr::way_idx_t{4}, osr::way_idx_t{4}));
+  ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{2}, static_cast<std::uint32_t>(28), false, osr::node_idx_t{3}, osr::way_idx_t{2}, osr::way_idx_t{2}));
 
-  osr::vec<std::pair<osr::node_idx_t, std::uint32_t>> ex1_n_exp;
-  ex1_n_exp.push_back(std::pair(osr::node_idx_t{4}, static_cast<std::uint32_t>(27)));
-  ex1_n_exp.push_back(std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(28)));
-  ex1_n_exp.push_back(std::pair(osr::node_idx_t{1}, static_cast<std::uint32_t>(36)));
+  osr::vec<std::tuple<osr::node_idx_t, std::uint32_t, bool, osr::node_idx_t, osr::way_idx_t, osr::way_idx_t>> ex1_n_exp;
+  ex1_n_exp.push_back(std::tuple(osr::node_idx_t{4}, static_cast<std::uint32_t>(27), false, osr::node_idx_t{3}, osr::way_idx_t{4}, osr::way_idx_t{4}));
+  ex1_n_exp.push_back(std::tuple(osr::node_idx_t{2}, static_cast<std::uint32_t>(28), false, osr::node_idx_t{3}, osr::way_idx_t{2}, osr::way_idx_t{2}));
+  ex1_n_exp.push_back(std::tuple(osr::node_idx_t{1}, static_cast<std::uint32_t>(36), false, osr::node_idx_t{3}, osr::way_idx_t{1}, osr::way_idx_t{1}));
 
   ex1_n.sort_neighbors();
   ASSERT_EQ(ex1_n.neighbors_, ex1_n_exp);
 }
 
-TEST(extract, neighborhood_concat) {
-  auto p = fs::temp_directory_path() / "osr_test";
-  auto ec = std::error_code{};
-  fs::remove_all(p, ec);
-  fs::create_directories(p, ec);
+// TEST(extract, neighborhood_concat) {
+//   auto p = fs::temp_directory_path() / "osr_test";
+//   auto ec = std::error_code{};
+//   fs::remove_all(p, ec);
+//   fs::create_directories(p, ec);
 
-  extract(false, "test/aachen.osm.pbf", p, {});
+//   extract(false, "test/aachen.osm.pbf", p, {});
 
-  auto ex1_n = cch::neighborhood(osr::node_idx_t{10}, static_cast<std::uint32_t>(13));
-  auto ex2_n = cch::neighborhood(osr::node_idx_t{11}, static_cast<std::uint32_t>(12));
+//   auto ex1_n = cch::neighborhood(osr::node_idx_t{10}, static_cast<std::uint32_t>(13));
+//   auto ex2_n = cch::neighborhood(osr::node_idx_t{11}, static_cast<std::uint32_t>(12));
 
-  ex2_n.concatenate(ex1_n.neighbors_);
-  ASSERT_TRUE(ex2_n.neighbors_.empty());
+//   ex2_n.concatenate(ex1_n.neighbors_);
+//   ASSERT_TRUE(ex2_n.neighbors_.empty());
 
-  ex2_n.neighbors_.push_back(std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(28)));
-  ex2_n.neighbors_.push_back(std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(2)));
+//   ex2_n.neighbors_.push_back(std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(28)));
+//   ex2_n.neighbors_.push_back(std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(2)));
 
-  ex1_n.concatenate(ex2_n.neighbors_);
-  ASSERT_EQ(ex1_n.neighbors_[0], std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(28)));
-  ASSERT_TRUE(ex1_n.neighbors_.size() == 1);
-}
+//   ex1_n.concatenate(ex2_n.neighbors_);
+//   ASSERT_EQ(ex1_n.neighbors_[0], std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(28)));
+//   ASSERT_TRUE(ex1_n.neighbors_.size() == 1);
+// }
 
 
 TEST(extract, elimination_tree) {
@@ -160,6 +162,7 @@ TEST(extract, elimination_tree) {
   auto mip = cch::mip_proc{w};
   mip.build_contraction_order();
   mip.init_neighborhoods();
+  mip.contract_nodes();
 
   // neighbor without any neighbors:
   ASSERT_EQ(mip.elimination_tree_[0], static_cast<std::uint32_t>(9663));
