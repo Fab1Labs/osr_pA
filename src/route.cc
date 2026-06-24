@@ -531,6 +531,33 @@ std::optional<path> route_dijkstra(typename P::parameters const& params,
 }
 
 template <Profile P>
+std::optional<path> route_cch_bidir_dijkstra(typename P::parameters const& params, 
+                                            ways const& w,
+                                            lookup const& l,
+                                            cch::bidir_dijkstra<P>& b,
+                                            location const& from,
+                                            location const& to, 
+                                            match_view_t from_match,
+                                            match_view_t to_match,
+                                            cost_t const max,
+                                            direction const dir,
+                                            bitvec<node_idx_t> const* blocked,
+                                            sharing_data const* sharing,
+                                            elevation_storage const* elevations) {
+  if (auto const direct = try_direct(from, to); direct.has_value()) {
+    return *direct;
+  }
+
+  auto const limit_squared_max_matching_distance =
+    std::pow(geo::distance(from.pos_, to.pos_), 2) /
+    kMaxMatchingDistanceSquaredRatio;
+
+  b.reset(max);
+
+  return std::nullopt;
+}
+
+template <Profile P>
 std::vector<std::optional<path>> route(
     typename P::parameters const& params,
     ways const& w,
@@ -674,6 +701,7 @@ std::vector<std::optional<path>> route(
       });
 }
 
+// before starting the dijkstra create the from and two matches here or stop the process
 std::optional<path> route_dijkstra(profile_parameters const& params,
                                    ways const& w,
                                    lookup const& l,
@@ -724,6 +752,35 @@ std::vector<std::optional<path>> route(
     return route(std::get<typename P::parameters>(params), w, l,
                  get_dijkstra<P>(), from, to, from_match, to_match, max, dir,
                  blocked, sharing, elevations, do_reconstruct);
+  });
+}
+
+std::optional<path> route_cch_bidir_dijkstra(profile_parameters const& params, 
+                                            ways const& w, 
+                                            lookup const& l, 
+                                            search_profile const profile, 
+                                            location const& from,
+                                            location const& to,
+                                            cost_t const max,
+                                            direction const dir,
+                                            double const max_match_distance,
+                                            bitvec<node_idx_t> const* blocked,
+                                            sharing_data const* sharing, 
+                                            elevation_storage const* elevations) {
+  return with_profile(profile, [&]<Profile P>(P&&) -> std::optional<path> {
+    auto const& pp = std::get<typename P::parameters>(params);
+    auto const from_match = 
+        l.match<P>(pp, from, false, dir, max_match_distance, blocked);
+    auto const to_match = 
+        l.match<P>(pp, to, true, dir, max_match_distance, blocked);
+
+    if (from_match.empty() || to_match.empty()) {
+      return std::nullopt;
+    }
+
+    return route_cch_bidir_dijkstra(pp, w, l, get_bidir_dijkstra<P>(), from, to, 
+                                    from_match, to_match, max, dir, blocked, sharing,
+                                    elevations);
   });
 }
 
@@ -798,7 +855,9 @@ std::optional<path> route(profile_parameters const& params,
                                  max_match_distance, blocked, sharing,
                                  elevations);
     case routing_algorithm::kBidirDijkstra:
-      return std::nullopt;
+      return route_cch_bidir_dijkstra(params, w, l, profile, from, to, max, 
+                                      dir, max_match_distance, blocked, sharing, 
+                                      elevations);
   }
   throw utl::fail("not implemented");
 }
