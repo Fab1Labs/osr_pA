@@ -25,6 +25,7 @@
 #include "osr/routing/profiles/foot.h"
 #include "osr/routing/sharing_data.h"
 #include "osr/routing/with_profile.h"
+#include "osr/routing/cch_bidirectional_dijkstra.h"
 #include "osr/util/infinite.h"
 #include "osr/util/reverse.h"
 
@@ -51,10 +52,20 @@ dijkstra<P>& get_dijkstra() {
   return *s.get();
 }
 
+template <Profile P>
+cch::bidir_dijkstra<P>& get_bidir_dijkstra() {
+  static auto s = boost::thread_specific_ptr<cch::bidir_dijkstra<P>>{};
+  if (s.get() == nullptr) {
+    s.reset(new cch::bidir_dijkstra<P>{});
+  }
+  return *s.get();
+}
+
 routing_algorithm to_algorithm(std::string_view s) {
   switch (cista::hash(s)) {
     case cista::hash("dijkstra"): return routing_algorithm::kDijkstra;
     case cista::hash("bidirectional"): return routing_algorithm::kAStarBi;
+    case cista::hash("bidir_dijkstra"): return routing_algorithm::kBidirDijkstra;
   }
   throw utl::fail("unknown routing algorithm: {}", s);
 }
@@ -399,7 +410,7 @@ std::optional<path> route_bidirectional(typename P::parameters const& params,
             *w.r_, start.way_, nc->node_, from.lvl_, dir, [&](auto const node) {
               auto label = typename P::label{node, nc->cost_};
               label.track(label, *w.r_, start_way, node.get_node(), false);
-              b.add_start(params, w, label, sharing);
+              b.add_start(params, w, label, sharing);                       // add start nodes here and the previous lines
             });
       }
     }
@@ -425,7 +436,7 @@ std::optional<path> route_bidirectional(typename P::parameters const& params,
               [&](auto const node) {
                 auto label = typename P::label{node, nc->cost_};
                 label.track(label, *w.r_, end_way, node.get_node(), false);
-                b.add_end(params, w, label, sharing);
+                b.add_end(params, w, label, sharing);                     // add end nodes 
               });
         }
       }
@@ -462,7 +473,7 @@ std::optional<path> route_dijkstra(typename P::parameters const& params,
                                    dijkstra<P>& d,
                                    location const& from,
                                    location const& to,
-                                   match_view_t from_match,
+                                   match_view_t from_match, //array of way candidates with two closest nodes left and right
                                    match_view_t to_match,
                                    cost_t const max,
                                    direction const dir,
@@ -753,6 +764,8 @@ std::optional<path> route(profile_parameters const& params,
                                    from_match, to_match, max, dir, blocked,
                                    sharing, elevations);
       });
+    case routing_algorithm::kBidirDijkstra:
+      return std::nullopt;
   }
   throw utl::fail("not implemented");
 }
@@ -784,6 +797,8 @@ std::optional<path> route(profile_parameters const& params,
       return route_bidirectional(params, w, l, profile, from, to, max, dir,
                                  max_match_distance, blocked, sharing,
                                  elevations);
+    case routing_algorithm::kBidirDijkstra:
+      return std::nullopt;
   }
   throw utl::fail("not implemented");
 }

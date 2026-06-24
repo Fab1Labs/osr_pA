@@ -48,8 +48,4 @@ struct mip_proc {
   osr::vec<std::uint32_t> elimination_tree_;
 };
 
-struct g_plus {
-
-};
-
 } //namespace cch
