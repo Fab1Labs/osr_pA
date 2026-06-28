@@ -17,6 +17,7 @@
 #include "osr/geojson.h"
 #include "osr/location.h"
 #include "osr/lookup.h"
+#include "osr/routing/cch_bidirectional_dijkstra.h"
 #include "osr/routing/bidirectional.h"
 #include "osr/routing/dijkstra.h"
 #include "osr/routing/profile.h"

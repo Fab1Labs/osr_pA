@@ -20,6 +20,7 @@ struct bidir_dijkstra {
   using node = typename P::node;
   using entry = typename P::entry;
   using hash = typename P::hash;
+  using cost_map = typename ankerl::unordered_dense::map<key, entry, hash>;
 
   static constexpr auto const kDebug = false;
 
@@ -27,7 +28,9 @@ struct bidir_dijkstra {
     osr::cost_t operator()(label const& l) {return l.cost();}
   };
 
-  void reset(osr::cost_t const max) {
+  void reset(osr::cost_t const max, 
+              osr::location const& start_loc,
+              osr::location const& end_loc) {
     pq_f_.clear();
     pq_b_.clear();
     pq_f_.n_buckets(max + 1U);
@@ -36,11 +39,188 @@ struct bidir_dijkstra {
     max_reached_b_ = false;
     cost_f_.clear();
     cost_b_.clear();
+    start_loc_ = start_loc;
+    end_loc_ = end_loc;
+    mu_ = osr::kInfeasible;
+    forward_mp_ = forward_mp_.invalid();
+    backward_mp_ = backward_mp_.invalid();
   }
 
-  // void add_start(osr::ways const& w, label const l) {
+  void add_start(osr::ways const& w, label const l) {
+    if (cost_f_[l.get_node().get_key()].update(l, l.get_node(), l.cost(),
+                                                node::invalid())) {
+      if constexpr (kDebug) {
+        std::cout << "START ";
+        l.get_node().print(std::cout, w);
+        std::cout << "\n";
+      }
+      utl::verify(l.cost() < pq_f_.n_buckets(),
+                  "bidir_dijkstra::add_start: label cost exceed max: {} >= {}",
+                l.cost(), pq_f_.n_buckets());
+      pq_f_.push(l);
+    }
+  }
 
-  // }
+  void add_end(osr::ways const& w, label const l) {
+    if (cost_b_[l.get_node().get_key()].update(l, l.get_node(), l.cost(), 
+                                                node::invalid())) {
+      if constexpr (kDebug) {
+        std::cout << "END ";
+        l.get_node().print(std::cout, w);
+        std::cout << "\n";
+      }
+      utl::verify(l.cost() < pq_b_.n_buckets(),
+                  "bidir_dijkstra::add_end: label cost exceed max: {} >= {}",
+                l.cost(), pq_b_.n_buckets());
+      pq_b_.push(l);
+    }
+  }
+
+  template <osr::direction PathDir>
+  osr::cost_t get_cost(node const n) {
+    if (PathDir == osr::direction::kForward) {
+      auto const it = cost_f_.find(n.get_key());
+      return it != end(cost_f_) ? it->second.cost(n) : osr::kInfeasible;
+    } else {
+      auto const it = cost_b_.find(n.get_key());
+      return it != end(cost_b_) ? it->second.cost(n) : osr::kInfeasible;
+    }
+  }
+
+  template <osr::direction SearchDir, bool WithBlocked, osr::direction PathDir>
+  bool run_single(P::parameters const& params, 
+          osr::ways const& w,
+          osr::ways::routing const& r, 
+          osr::cost_t const max,
+          osr::bitvec<osr::node_idx_t> const* blocked,
+          osr::sharing_data const* sharing,
+          osr::elevation_storage const* elevations,
+          label l,
+          osr::dial<label, get_bucket>& pq,
+          cost_map& costs) {
+    //auto l = pq.pop();
+
+    if (get_cost<PathDir>(l.get_node()) < l.cost()) {
+      return PathDir == osr::direction::kForward ? !max_reached_f_ : !max_reached_b_;
+    }
+
+    // implement early termination here if needed:
+    // -> ...
+  
+    if constexpr (kDebug) {
+      std::cout << "EXTRACT ";
+      l.get_node().print(std::cout, w);
+      std::cout << "\n";
+    }
+
+    auto const curr = l.get_node();
+    P::template adjacent<SearchDir, WithBlocked>(
+      params, r, curr, blocked, sharing, elevations,
+      [&](node const neighbor, std::uint32_t const cost, osr::distance_t,
+          osr::way_idx_t const way, std::uint16_t, std::uint16_t,
+          osr::elevation_storage::elevation, bool const track) {
+
+        if constexpr (kDebug) {
+          std::cout << "NEIGHBOR ";
+          neighbor.print(std::cout, w);
+        }
+        
+        auto const total = static_cast<std::uint64_t>(l.cost()) + cost;
+        if (total >= max && PathDir == osr::direction::kForward) {
+          max_reached_f_ = true;
+          return;
+        }
+        if (total >= max && PathDir == osr::direction::kBackward) {
+          max_reached_b_ = true;
+          return;
+        }
+        
+        if (costs[neighbor.get_key()].update(
+                l, neighbor, static_cast<osr::cost_t>(total), curr)) {
+          auto next = label{neighbor, static_cast<osr::cost_t>(total)};
+          next.track(l, r, way, neighbor.get_node(), track);
+          pq.push(std::move(next));
+
+          if constexpr (kDebug && PathDir == osr::direction::kForward) {
+            std::cout << " -> PUSH (fw)\n";
+          }
+          if constexpr (kDebug && PathDir == osr::direction::kBackward) {
+            std::cout << " -> PUSH (bw)\n";
+          }
+        } else {
+          if constexpr (kDebug && PathDir == osr::direction::kBackward) {
+            std::cout << " -> DOMINATED (bw)\n";
+          }
+          if constexpr (kDebug && PathDir == osr::direction::kForward) {
+            std::cout << " -> DOMINATED (fw)\n";
+          }
+        }
+
+        // update mu if necessary:
+        auto contrary_cost = get_cost<opposite(PathDir)>(neighbor);
+        if (contrary_cost != osr::kInfeasible) {
+          if (total + contrary_cost < mu_) {
+            mu_ = total + contrary_cost;
+            PathDir == osr::direction::kForward
+                    ? forward_mp_ = neighbor
+                    : backward_mp_ = neighbor;
+          }
+        }
+      });
+    return SearchDir == osr::direction::kForward ? !max_reached_f_ : !max_reached_b_;
+  }
+
+  template <osr::direction SearchDir, bool WithBlocked>
+  bool run(P::parameters const& params,
+           osr::ways const& w,
+           osr::ways::routing const& r,
+           osr::cost_t const max,
+           osr::bitvec<osr::node_idx_t> const* blocked,
+           osr::sharing_data const* sharing,
+           osr::elevation_storage const* elevations) {
+    while (!pq_f_.empty() && !pq_b_.empty()) {
+
+      auto forward_n = pq_f_.pop();
+      if (!run_single<SearchDir, WithBlocked, osr::direction::kForward>(
+          params, w, r, max, blocked, sharing, elevations, forward_n, pq_f_, cost_f_)) {
+        break;
+      }
+
+      auto backward_n = pq_b_.pop();
+      if (!run_single<opposite(SearchDir), WithBlocked, osr::direction::kBackward>(
+          params, w, r, max, blocked, sharing, elevations, backward_n, pq_b_, cost_b_)) {
+        break;
+      }
+
+      if (get_cost<osr::direction::kForward>(forward_n.get_node()) + get_cost<osr::direction::kBackward>(backward_n.get_node()) >= mu_) {
+        std::cout << "found shortest mu: " << mu_ << " and a sum of meetpoints: " << get_cost<osr::direction::kForward>(forward_n.get_node()) + get_cost<osr::direction::kBackward>(backward_n.get_node()) <<"\n"; 
+        return false;
+        break;
+      }
+    }
+
+    std::cout << "found shortest mu: " << mu_ << " and a sum of meetpoints: " << get_cost<osr::direction::kForward>(forward_mp_) + get_cost<osr::direction::kBackward>(backward_mp_) <<"\n"; 
+    return !max_reached_f_ || !max_reached_b_;
+  }
+
+  bool run(P::parameters const& params, 
+           osr::ways const& w,
+           osr::ways::routing const& r, 
+           osr::cost_t const max, 
+           osr::bitvec<osr::node_idx_t> const* blocked,
+           osr::sharing_data const* sharing, 
+           osr::elevation_storage const* elevations, 
+           osr::direction const dir) {
+    if (blocked == nullptr) {
+      return dir == osr::direction::kForward
+                  ? run<osr::direction::kForward, false>(params, w, r, max, blocked, sharing, elevations)
+                  : run<osr::direction::kBackward, false>(params, w, r, max, blocked, sharing, elevations);
+    } else {
+      return dir == osr::direction::kForward
+                  ? run<osr::direction::kForward, true>(params, w, r, max, blocked, sharing, elevations)
+                  : run<osr::direction::kBackward, true>(params, w, r, max, blocked, sharing, elevations);
+    }
+  }
 
   osr::location start_loc_;
   osr::location end_loc_;
@@ -49,6 +229,8 @@ struct bidir_dijkstra {
   ankerl::unordered_dense::map<key, entry, hash> cost_f_;
   ankerl::unordered_dense::map<key, entry, hash> cost_b_;
   osr::cost_t mu_;
+  node forward_mp_;
+  node backward_mp_;
   bool max_reached_f_{};
   bool max_reached_b_{};
 };

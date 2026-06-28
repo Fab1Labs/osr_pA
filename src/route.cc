@@ -533,7 +533,6 @@ std::optional<path> route_dijkstra(typename P::parameters const& params,
 template <Profile P>
 std::optional<path> route_cch_bidir_dijkstra(typename P::parameters const& params, 
                                             ways const& w,
-                                            lookup const& l,
                                             cch::bidir_dijkstra<P>& b,
                                             location const& from,
                                             location const& to, 
@@ -548,12 +547,60 @@ std::optional<path> route_cch_bidir_dijkstra(typename P::parameters const& param
     return *direct;
   }
 
-  auto const limit_squared_max_matching_distance =
-    std::pow(geo::distance(from.pos_, to.pos_), 2) /
-    kMaxMatchingDistanceSquaredRatio;
+  b.reset(max, from, to);
 
-  b.reset(max);
+  // auto const limit_squared_max_matching_distance =
+  //   std::pow(geo::distance(from.pos_, to.pos_), 2) /
+  //   kMaxMatchingDistanceSquaredRatio;
 
+  auto should_continue = true; // add the start nodes to the forward queue:
+  for (auto const [i, start] : utl::enumerate(from_match)) {
+    if (!should_continue && component_seen(w, from_match, i)) { // check if start was already used
+      continue;
+    }
+    if (utl::none_of(to_match, [&](way_candidate const& end) { // check if start candidate also in to_match
+        return w.r_->way_component_[start.way_] ==
+               w.r_->way_component_[end.way_];      
+    })) {
+      continue;
+    }
+
+    for (auto const* nc : {&start.left_, &start.right_}) {
+      if (nc->valid() && nc->cost_ < max) {
+        P::resolve_start_node(*w.r_, start.way_, nc->node_, from.lvl_, dir, [&](auto const node) { 
+          b.add_start(w, {node, nc->cost_}); 
+        });
+      }
+    }
+
+    if (b.pq_f_.empty()) {
+      continue;
+    }
+
+    for (auto const [j, end] : utl::enumerate(to_match)) {
+      if (w.r_->way_component_[start.way_] != w.r_->way_component_[end.way_]) {
+        continue;
+      }
+      if (!should_continue && component_seen(w, to_match, j)) {
+        continue;
+      }
+
+      for (auto const* nc : {&end.left_, &end.right_}) { // add destination candidates for backward queue
+        if (nc->valid() && nc->cost_ < max) {
+          P::resolve_start_node(*w.r_, end.way_, nc->node_, to.lvl_, opposite(dir), [&](auto const node) {
+            b.add_end(w, {node, nc->cost_});
+          });
+        }
+      }
+      if (b.pq_b_.empty()) {
+        continue;
+      }
+
+      should_continue = 
+        b.run(params, w, *w.r_, max, blocked, sharing, elevations, dir) &&
+        should_continue;
+    }
+  }
   return std::nullopt;
 }
 
@@ -778,7 +825,7 @@ std::optional<path> route_cch_bidir_dijkstra(profile_parameters const& params,
       return std::nullopt;
     }
 
-    return route_cch_bidir_dijkstra(pp, w, l, get_bidir_dijkstra<P>(), from, to, 
+    return route_cch_bidir_dijkstra(pp, w, get_bidir_dijkstra<P>(), from, to, 
                                     from_match, to_match, max, dir, blocked, sharing,
                                     elevations);
   });
