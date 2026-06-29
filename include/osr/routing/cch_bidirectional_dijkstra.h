@@ -42,8 +42,7 @@ struct bidir_dijkstra {
     start_loc_ = start_loc;
     end_loc_ = end_loc;
     mu_ = osr::kInfeasible;
-    forward_mp_ = forward_mp_.invalid();
-    backward_mp_ = backward_mp_.invalid();
+    meet_point_ = meet_point_.invalid();
   }
 
   void add_start(osr::ways const& w, label const l) {
@@ -77,7 +76,7 @@ struct bidir_dijkstra {
   }
 
   template <osr::direction PathDir>
-  osr::cost_t get_cost(node const n) {
+  osr::cost_t get_cost(node const n) const {
     if (PathDir == osr::direction::kForward) {
       auto const it = cost_f_.find(n.get_key());
       return it != end(cost_f_) ? it->second.cost(n) : osr::kInfeasible;
@@ -158,13 +157,16 @@ struct bidir_dijkstra {
 
         // update mu if necessary:
         auto contrary_cost = get_cost<opposite(PathDir)>(neighbor);
-        if (contrary_cost != osr::kInfeasible) {
-          if (total + contrary_cost < mu_) {
-            mu_ = total + contrary_cost;
-            PathDir == osr::direction::kForward
-                    ? forward_mp_ = neighbor
-                    : backward_mp_ = neighbor;
-          }
+        if (contrary_cost != osr::kInfeasible && total + contrary_cost < mu_) {
+          mu_ = total + contrary_cost;
+          meet_point_ = neighbor;
+          // if (PathDir == osr::direction::kForward) {
+          //   meet_point_f_ = curr;
+          //   meet_point_b_ = neighbor;
+          // } else {
+          //   meet_point_f_ = neighbor;
+          //   meet_point_b_ = curr;
+          // }
         }
       });
     return SearchDir == osr::direction::kForward ? !max_reached_f_ : !max_reached_b_;
@@ -199,7 +201,7 @@ struct bidir_dijkstra {
       }
     }
 
-    std::cout << "found shortest mu: " << mu_ << " and a sum of meetpoints: " << get_cost<osr::direction::kForward>(forward_mp_) + get_cost<osr::direction::kBackward>(backward_mp_) <<"\n"; 
+    
     return !max_reached_f_ || !max_reached_b_;
   }
 
@@ -229,8 +231,7 @@ struct bidir_dijkstra {
   ankerl::unordered_dense::map<key, entry, hash> cost_f_;
   ankerl::unordered_dense::map<key, entry, hash> cost_b_;
   osr::cost_t mu_;
-  node forward_mp_;
-  node backward_mp_;
+  node meet_point_;
   bool max_reached_f_{};
   bool max_reached_b_{};
 };
