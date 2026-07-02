@@ -6,6 +6,7 @@
 
 #include "cista/containers/vector.h"
 #include "cista/strong.h"
+#include "cista/io.h"
 #include "utl/enumerate.h"
 
 #include "osr/ways.h"
@@ -34,15 +35,20 @@ struct neighborhood {
 };
 
 struct mip_proc {
-  explicit mip_proc(osr::ways const&);
+  explicit mip_proc(osr::ways&);
 
   void build_contraction_order();
   bool check_importance(osr::node_idx_t const&, osr::node_idx_t const&);
   bool is_in(osr::vec<std::tuple<osr::node_idx_t, std::uint32_t, bool, osr::node_idx_t, osr::way_idx_t, osr::way_idx_t>> const&, osr::node_idx_t const&);
   void init_neighborhoods();
   void contract_nodes();
+  void write_shortcuts(cista::mmap::protection);
 
-  osr::ways const& ways_;
+  cista::mmap mm(char const* file, cista::mmap::protection mode) {
+    return cista::mmap{(ways_.p_ / file).generic_string().c_str(), mode};
+  }
+
+  osr::ways& ways_;
   osr::vec<osr::node_idx_t> contr_order_;
   osr::vec<neighborhood> all_neighbors_;
   osr::vec<std::uint32_t> elimination_tree_;

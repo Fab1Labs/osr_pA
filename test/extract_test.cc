@@ -127,6 +127,21 @@ TEST(extract, sort_neighbors) {
   ASSERT_EQ(ex1_n.neighbors_, ex1_n_exp);
 }
 
+TEST(extract, shortcuts) {
+  auto p = fs::temp_directory_path() / "osr_test";
+  auto ec = std::error_code{};
+  fs::remove_all(p, ec);
+  fs::create_directories(p, ec);
+
+  extract(false, "test/aachen.osm.pbf", p, {});
+  auto w = ways{p, cista::mmap::protection::READ};
+
+  for (auto const s : w.r_->shortcut_properties_) {
+    ASSERT_TRUE(w.r_->node_importance_[s.via_] < w.r_->node_importance_[s.lower_end_]);
+    ASSERT_TRUE(w.r_->node_importance_[s.lower_end_] < w.r_->node_importance_[s.upper_end_]);
+  }
+}
+
 // TEST(extract, neighborhood_concat) {
 //   auto p = fs::temp_directory_path() / "osr_test";
 //   auto ec = std::error_code{};

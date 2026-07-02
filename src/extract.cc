@@ -701,17 +701,23 @@ void extract(bool const with_platforms,
 
   pt->status("Big Street Neighbors").in_high(w.n_ways()).out_bounds(95, 99);
   w.compute_big_street_neighbors();
+
+  auto mip_proc = cch::mip_proc{w};
+  mip_proc.build_contraction_order();
+  mip_proc.init_neighborhoods();
+  mip_proc.contract_nodes();
+  mip_proc.write_shortcuts(cista::mmap::protection::WRITE);
   w.r_->write(out);
 
   pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
   lookup{w, out, cista::mmap::protection::WRITE}.build_rtree();
 
   // insert the metric independent preprocessing at the end of the extract step
-  pt->status("CCH metric-independent preprocessing").in_high(1).out_bounds(99, 100);
-  auto mip_proc_ = cch::mip_proc{w};
-  mip_proc_.build_contraction_order();
-  mip_proc_.init_neighborhoods();
-  mip_proc_.contract_nodes();
+  //pt->status("CCH metric-independent preprocessing").in_high(1).out_bounds(99, 100);
+  
+
+  // store the shortcut information in own cista files:
+
 }
 
 }  // namespace osr

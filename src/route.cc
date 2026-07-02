@@ -681,48 +681,47 @@ std::optional<path> route_cch_bidir_dijkstra(typename P::parameters const& param
           b.add_start(w, {node, nc->cost_}); 
         });
       }
-    }
 
-    if (b.pq_f_.empty()) {
-      continue;
-    }
-
-    for (auto const [j, end] : utl::enumerate(to_match)) {
-      if (w.r_->way_component_[start.way_] != w.r_->way_component_[end.way_]) {
-        continue;
-      }
-      if (!should_continue && component_seen(w, to_match, j)) {
+      if (b.pq_f_.empty()) {
         continue;
       }
 
-      for (auto const* nc : {&end.left_, &end.right_}) { // add destination candidates for backward queue
-        if (nc->valid() && nc->cost_ < max) {
-          P::resolve_start_node(*w.r_, end.way_, nc->node_, to.lvl_, opposite(dir), [&](auto const node) {
-            b.add_end(w, {node, nc->cost_});
-          });
-        }
-      }
-      if (b.pq_b_.empty()) {
-        continue;
-      }
-
-      should_continue = 
-        b.run(params, w, *w.r_, max, blocked, sharing, elevations, dir) &&
-        should_continue;
-
-      // check if a mu was already found:
-      if (b.meet_point_.get_node() == node_idx_t::invalid()) {
-        if (should_continue) {
+      for (auto const [j, end] : utl::enumerate(to_match)) {
+        if (w.r_->way_component_[start.way_] != w.r_->way_component_[end.way_]) {
           continue;
         }
-        return std::nullopt;
+        if (!should_continue && component_seen(w, to_match, j)) {
+          continue;
+        }
+
+        for (auto const* nc : {&end.left_, &end.right_}) { // add destination candidates for backward queue
+          if (nc->valid() && nc->cost_ < max) {
+            P::resolve_start_node(*w.r_, end.way_, nc->node_, to.lvl_, opposite(dir), [&](auto const node) {
+              b.add_end(w, {node, nc->cost_});
+            });
+          }
+        }
+        if (b.pq_b_.empty()) {
+         continue;
+        }
+
+        should_continue = 
+          b.run(params, w, *w.r_, max, blocked, sharing, elevations, dir) &&
+          should_continue;
+
+        // check if a mu was already found:
+        if (b.meet_point_.get_node() == node_idx_t::invalid()) {
+          if (should_continue) {
+            continue;
+          }
+          return std::nullopt;       
+        }
+
+        //reconstruct the path:
+        return reconstruct_bidir<P>(params, w, l, blocked, sharing, elevations, b, from,
+                              to, start, end, dir);
       }
-
-      //reconstruct the path:
-      return reconstruct_bidir<P>(params, w, l, blocked, sharing, elevations, b, from,
-                            to, start, end, dir);
-
-    }
+    }  
   }
   return std::nullopt;
 }

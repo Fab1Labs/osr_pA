@@ -14,8 +14,7 @@ void cch::neighborhood::sort_neighbors() {
   if (neighbors_.empty()) {return;}
 
   //sort by increasing rank
-  auto sorting_condition_ = [](auto const& lhs, auto const& rhs) {return std::get<1>(lhs) < std::get<1>(rhs);};
-  //auto sorting_condition = [](auto const& lhs, auto const& rhs) {return lhs.second < rhs.second;}; //source: https://stackoverflow.com/questions/23816797/how-does-stdsort-work-for-list-of-pairs#23817006 11.06.2026
+  auto sorting_condition_ = [](auto const& lhs, auto const& rhs) {return std::get<1>(lhs) < std::get<1>(rhs);}; //source: https://stackoverflow.com/questions/23816797/how-does-stdsort-work-for-list-of-pairs#23817006 11.06.2026
   std::sort(neighbors_.begin(), neighbors_.end(), sorting_condition_);
 
   // filter duplicates
@@ -58,7 +57,7 @@ void cch::neighborhood::concatenate(neighborhood const& pred) {
   return;
 }
 
-cch::mip_proc::mip_proc(osr::ways const& w)
+cch::mip_proc::mip_proc(osr::ways& w)
   : ways_{w} {}
 
 // define the contraction order for the preprocessing here
@@ -127,4 +126,44 @@ void cch::mip_proc::contract_nodes() {
   }
 
   return;
+}
+
+void cch::mip_proc::write_shortcuts(cista::mmap::protection mode) {
+  auto shortcut_counter = 0;
+  std::vector<cch::shortcut_properties> shortcut_vec;
+  auto node_shortcuts = osr::mm_paged_vecvec<osr::node_idx_t, osr::shortcut_idx_t>{
+    cista::paged<osr::mm_vec32<osr::shortcut_idx_t>>{
+        osr::mm_vec32<osr::shortcut_idx_t>{mm("tmp_node_shortcuts_data.bin", mode)}},
+    osr::mm_vec<cista::page<std::uint32_t, std::uint16_t>>{
+        mm("tmp_node_shortcuts_index.bin", mode)}};
+  node_shortcuts.resize(ways_.node_to_osm_.size());
+
+  for (auto n : all_neighbors_) {
+
+    for (auto neighbor : n.neighbors_) {
+      if (!std::get<2>(neighbor)) {
+        continue;
+      }
+      node_shortcuts[n.node_].push_back(osr::shortcut_idx_t{shortcut_counter});
+      ++shortcut_counter;
+      shortcut_vec.emplace_back(cch::shortcut_properties{.lower_end_ = n.node_, 
+                                 .via_ = std::get<3>(neighbor),
+                                 .upper_end_ = std::get<0>(neighbor),
+                                 .lower_via_ = std::get<4>(neighbor),
+                                 .via_upper_ = std::get<5>(neighbor)});
+    }
+  }
+
+  for (auto const x : node_shortcuts) {
+    ways_.r_->node_shortcuts_.emplace_back(x);
+  }
+
+  ways_.r_->shortcut_properties_.resize(shortcut_vec.size());
+  for (auto const [i, sc] : utl::enumerate(shortcut_vec)) {
+    ways_.r_->shortcut_properties_[osr::shortcut_idx_t{i}] = sc;
+  }
+
+  auto e = std::error_code{};
+  std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_data.bin", e);
+  std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_index.bin", e);
 }

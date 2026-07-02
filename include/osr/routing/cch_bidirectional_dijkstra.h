@@ -157,16 +157,9 @@ struct bidir_dijkstra {
 
         // update mu if necessary:
         auto contrary_cost = get_cost<opposite(PathDir)>(neighbor);
-        if (contrary_cost != osr::kInfeasible && total + contrary_cost < mu_) {
+        if ((contrary_cost != osr::kInfeasible) && total + contrary_cost < mu_) {
           mu_ = total + contrary_cost;
           meet_point_ = neighbor;
-          // if (PathDir == osr::direction::kForward) {
-          //   meet_point_f_ = curr;
-          //   meet_point_b_ = neighbor;
-          // } else {
-          //   meet_point_f_ = neighbor;
-          //   meet_point_b_ = curr;
-          // }
         }
       });
     return SearchDir == osr::direction::kForward ? !max_reached_f_ : !max_reached_b_;
@@ -183,25 +176,25 @@ struct bidir_dijkstra {
     while (!pq_f_.empty() && !pq_b_.empty()) {
 
       auto forward_n = pq_f_.pop();
+      auto backward_n = pq_b_.pop();
+
       if (!run_single<SearchDir, WithBlocked, osr::direction::kForward>(
           params, w, r, max, blocked, sharing, elevations, forward_n, pq_f_, cost_f_)) {
         break;
       }
 
-      auto backward_n = pq_b_.pop();
       if (!run_single<opposite(SearchDir), WithBlocked, osr::direction::kBackward>(
           params, w, r, max, blocked, sharing, elevations, backward_n, pq_b_, cost_b_)) {
         break;
       }
 
-      if (get_cost<osr::direction::kForward>(forward_n.get_node()) + get_cost<osr::direction::kBackward>(backward_n.get_node()) >= mu_) {
-        std::cout << "found shortest mu: " << mu_ << " and a sum of meetpoints: " << get_cost<osr::direction::kForward>(forward_n.get_node()) + get_cost<osr::direction::kBackward>(backward_n.get_node()) <<"\n"; 
+      if (get_cost<osr::direction::kForward>(forward_n.get_node()) + 
+          get_cost<osr::direction::kBackward>(backward_n.get_node()) >= 
+          mu_) { 
         return false;
-        break;
       }
     }
 
-    
     return !max_reached_f_ || !max_reached_b_;
   }
 

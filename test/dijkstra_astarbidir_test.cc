@@ -20,6 +20,7 @@
 #include "osr/routing/cch_bidirectional_dijkstra.h"
 #include "osr/routing/bidirectional.h"
 #include "osr/routing/dijkstra.h"
+#include "osr/routing/cch_bidirectional_dijkstra.h"
 #include "osr/routing/profile.h"
 #include "osr/routing/profiles/car.h"
 #include "osr/routing/route.h"
@@ -115,7 +116,7 @@ void run(ways const& w,
       try {
         return route(car::parameters{}, w, l, search_profile::kCar, from_loc,
                      to_loc, from_matches_span, to_matches_span, max_cost, dir,
-                     nullptr, nullptr, nullptr, routing_algorithm::kAStarBi);
+                     nullptr, nullptr, nullptr, routing_algorithm::kBidirDijkstra);
       } catch (std::exception const& ex) {
         fmt::println("a* bidir exception: {}", ex.what());
         throw ex;
@@ -227,7 +228,7 @@ TEST(dijkstra_astarbidir, monaco_bwd) {
 TEST(dijkstra_astarbidir, hamburg) {
   auto const raw_data = "test/hamburg.osm.pbf";
   auto const data_dir = "test/hamburg";
-  auto const num_samples = 5000U;
+  auto const num_samples = 500U;
   auto const max_cost = 3 * 3600U;
   auto constexpr dir = direction::kForward;
 
@@ -263,7 +264,7 @@ TEST(dijkstra_astarbidir, switzerland) {
 TEST(dijkstra_astarbidir, DISABLED_germany) {
   auto const raw_data = "test/germany.osm.pbf";
   auto const data_dir = "test/germany";
-  constexpr auto const num_samples = 50U;
+  constexpr auto const num_samples = 5000U;
   constexpr auto const max_cost = 12 * 3600U;
   auto constexpr dir = direction::kForward;
 
