@@ -131,12 +131,21 @@ void cch::mip_proc::contract_nodes() {
 void cch::mip_proc::write_shortcuts(cista::mmap::protection mode) {
   auto shortcut_counter = 0;
   std::vector<cch::shortcut_properties> shortcut_vec;
-  auto node_shortcuts = osr::mm_paged_vecvec<osr::node_idx_t, osr::shortcut_idx_t>{
+
+  auto node_shortcuts_up = osr::mm_paged_vecvec<osr::node_idx_t, osr::shortcut_idx_t>{
     cista::paged<osr::mm_vec32<osr::shortcut_idx_t>>{
-        osr::mm_vec32<osr::shortcut_idx_t>{mm("tmp_node_shortcuts_data.bin", mode)}},
+        osr::mm_vec32<osr::shortcut_idx_t>{mm("tmp_node_shortcuts_up_data.bin", mode)}},
     osr::mm_vec<cista::page<std::uint32_t, std::uint16_t>>{
-        mm("tmp_node_shortcuts_index.bin", mode)}};
-  node_shortcuts.resize(ways_.node_to_osm_.size());
+        mm("tmp_node_shortcuts_up_index.bin", mode)}};
+
+  auto node_shortcuts_down = osr::mm_paged_vecvec<osr::node_idx_t, osr::shortcut_idx_t>{
+    cista::paged<osr::mm_vec32<osr::shortcut_idx_t>>{
+        osr::mm_vec32<osr::shortcut_idx_t>{mm("tmp_node_shortcuts_down_data.bin", mode)}},
+    osr::mm_vec<cista::page<std::uint32_t, std::uint16_t>>{
+        mm("tmp_node_shortcuts_down_index.bin", mode)}};
+
+  node_shortcuts_up.resize(ways_.node_to_osm_.size());
+  node_shortcuts_down.resize(ways_.node_to_osm_.size());
 
   for (auto n : all_neighbors_) {
 
@@ -144,7 +153,8 @@ void cch::mip_proc::write_shortcuts(cista::mmap::protection mode) {
       if (!std::get<2>(neighbor)) {
         continue;
       }
-      node_shortcuts[n.node_].push_back(osr::shortcut_idx_t{shortcut_counter});
+      node_shortcuts_up[n.node_].push_back(osr::shortcut_idx_t{shortcut_counter});
+      node_shortcuts_down[std::get<0>(neighbor)].push_back(osr::shortcut_idx_t{shortcut_counter});
       ++shortcut_counter;
       shortcut_vec.emplace_back(cch::shortcut_properties{.lower_end_ = n.node_, 
                                  .via_ = std::get<3>(neighbor),
@@ -154,8 +164,8 @@ void cch::mip_proc::write_shortcuts(cista::mmap::protection mode) {
     }
   }
 
-  for (auto const x : node_shortcuts) {
-    ways_.r_->node_shortcuts_.emplace_back(x);
+  for (auto const x : node_shortcuts_up) {
+    ways_.r_->node_shortcuts_up_.emplace_back(x);
   }
 
   ways_.r_->shortcut_properties_.resize(shortcut_vec.size());
@@ -164,6 +174,8 @@ void cch::mip_proc::write_shortcuts(cista::mmap::protection mode) {
   }
 
   auto e = std::error_code{};
-  std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_data.bin", e);
-  std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_index.bin", e);
+  std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_up_data.bin", e);
+  std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_up_index.bin", e);
+  std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_down_data.bin", e);
+  std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_down_index.bin", e);
 }
