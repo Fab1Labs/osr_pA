@@ -160,7 +160,9 @@ void cch::mip_proc::write_shortcuts(cista::mmap::protection mode) {
                                  .via_ = std::get<3>(neighbor),
                                  .upper_end_ = std::get<0>(neighbor),
                                  .lower_via_ = std::get<4>(neighbor),
-                                 .via_upper_ = std::get<5>(neighbor)});
+                                 .via_upper_ = std::get<5>(neighbor),
+                                 .costs_up_ = osr::kInfeasible,
+                                 .costs_down_ = osr::kInfeasible});
     }
   }
 
@@ -179,3 +181,14 @@ void cch::mip_proc::write_shortcuts(cista::mmap::protection mode) {
   std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_down_data.bin", e);
   std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_down_index.bin", e);
 }
+
+// void cch::mip_proc::basic_customization() {
+//   if (ways_.r_->shortcut_properties_.size == 0) {
+//     std::cout << "No shortcuts found for customization.\n";
+//     return;
+//   }
+
+//   for (auto const n : all_neighbors_) {
+
+//   }
+// }

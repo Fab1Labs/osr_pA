@@ -14,6 +14,12 @@
 
 namespace cch {
 
+struct neighbor {
+  osr::node_idx_t node_;
+  osr::way_idx_t edge_;
+  osr::direction dir_;
+};
+
 struct neighborhood {
 
   neighborhood(osr::node_idx_t const& node, std::uint32_t const& rank);
@@ -43,6 +49,7 @@ struct mip_proc {
   void init_neighborhoods();
   void contract_nodes();
   void write_shortcuts(cista::mmap::protection);
+  void basic_customization();
 
   cista::mmap mm(char const* file, cista::mmap::protection mode) {
     return cista::mmap{(ways_.p_ / file).generic_string().c_str(), mode};

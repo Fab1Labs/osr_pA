@@ -97,22 +97,20 @@ struct bidir_dijkstra {
           label l,
           osr::dial<label, get_bucket>& pq,
           cost_map& costs) {
-    //auto l = pq.pop();
-
+    auto const curr = l.get_node();
+    auto const curr_cost = get_cost<PathDir>(curr);
     if (get_cost<PathDir>(l.get_node()) < l.cost()) {
       return PathDir == osr::direction::kForward ? !max_reached_f_ : !max_reached_b_;
     }
 
-    // implement early termination here if needed:
-    // -> ...
-  
     if constexpr (kDebug) {
       std::cout << "EXTRACT ";
       l.get_node().print(std::cout, w);
       std::cout << "\n";
     }
 
-    auto const curr = l.get_node();
+    auto const is_fwd = PathDir == osr::direction::kForward;
+
     P::template adjacent<SearchDir, WithBlocked>(
       params, r, curr, blocked, sharing, elevations,
       [&](node const neighbor, std::uint32_t const cost, osr::distance_t,
@@ -124,12 +122,12 @@ struct bidir_dijkstra {
           neighbor.print(std::cout, w);
         }
         
-        auto const total = static_cast<std::uint64_t>(l.cost()) + cost;
-        if (total >= max && PathDir == osr::direction::kForward) {
+        auto const total = static_cast<std::uint64_t>(curr_cost) + cost;
+        if (total >= max && is_fwd) {
           max_reached_f_ = true;
           return;
         }
-        if (total >= max && PathDir == osr::direction::kBackward) {
+        if (total >= max && !is_fwd) {
           max_reached_b_ = true;
           return;
         }
@@ -140,28 +138,90 @@ struct bidir_dijkstra {
           next.track(l, r, way, neighbor.get_node(), track);
           pq.push(std::move(next));
 
-          if constexpr (kDebug && PathDir == osr::direction::kForward) {
-            std::cout << " -> PUSH (fw)\n";
-          }
-          if constexpr (kDebug && PathDir == osr::direction::kBackward) {
-            std::cout << " -> PUSH (bw)\n";
+          if constexpr (kDebug) {
+            is_fwd ? std::cout << " -> PUSH (fw)\n" : std::cout << " -> PUSH (bw)\n";
           }
         } else {
-          if constexpr (kDebug && PathDir == osr::direction::kBackward) {
-            std::cout << " -> DOMINATED (bw)\n";
-          }
-          if constexpr (kDebug && PathDir == osr::direction::kForward) {
-            std::cout << " -> DOMINATED (fw)\n";
+          if constexpr (kDebug) {
+            is_fwd ? std::cout << " -> DOMINATED (fw)\n" : std::cout << " -> DOMINATED (bw)\n";
           }
         }
-
-        // update mu if necessary:
-        auto contrary_cost = get_cost<opposite(PathDir)>(neighbor);
+    
+        // check for a potential meetpoint here:
+       auto contrary_cost = get_cost<opposite(PathDir)>(neighbor);
         if ((contrary_cost != osr::kInfeasible) && total + contrary_cost < mu_) {
           mu_ = total + contrary_cost;
-          meet_point_ = neighbor;
+          if (PathDir == osr::direction::kForward) {
+            meet_point_ = neighbor;
+          }
         }
       });
+
+    // auto const evaluate_meetpoint = [&](osr::cost_t cost_f, osr::cost_t cost_b,
+    //                                     node meetpoint) {
+    //   if constexpr (kDebug) {
+    //     std::cout << " potential MEETPOINT found by start ";
+    //     meetpoint.print(std::cout, w);
+    //   }
+    //   auto const tentative = static_cast<std::uint64_t>(cost_f) +
+    //                          static_cast<std::uint64_t>(cost_b);
+
+    //   if (tentative < mu_) {
+    //     meet_point_ = meetpoint;
+    //     mu_ = osr::clamp_cost(tentative);
+    //   }
+    // };
+
+    // auto const handle_meet_point = [&] () {
+    //   auto const opposite_cost_map = is_fwd ? &cost_b_ : &cost_f_;
+    //   auto const opposite_candidate = opposite_cost_map->find(curr.get_key());
+    //   if (opposite_candidate == end(*opposite_cost_map)) {
+    //     return;
+    //   }
+    //   auto const opposite_cost = opposite_candidate->second.cost(curr);
+    //   if (opposite_cost != osr::kInfeasible) {
+    //     evaluate_meetpoint(curr_cost, opposite_cost, curr);
+    //   } else {
+    //     auto const pred_it = costs.find(curr.get_key());
+    //     if (pred_it == end(costs)) {
+    //       return;
+    //     }
+    //     auto const pred = pred_it->second.pred(curr);
+    //     if (!pred.has_value()) {
+    //       return;
+    //     }
+    //     P::template adjacent<opposite(SearchDir), WithBlocked>(
+    //         params, r, curr, blocked, sharing, elevations,
+    //         [&](node const neighbor, std::uint32_t const, osr::distance_t,
+    //             osr::way_idx_t const, std::uint16_t, std::uint16_t,
+    //             osr::elevation_storage::elevation const, bool const) {
+    //           if (neighbor.get_key() != pred->get_key()) {
+    //             return;
+    //           }
+    //           auto const opposite_it =
+    //               opposite_cost_map->find(neighbor.get_key());
+    //           if (opposite_it == end(*opposite_cost_map)) {
+    //             return;
+    //           }
+    //           auto const opposite_curr = opposite_it->second.pred(neighbor);
+    //           if (!opposite_curr.has_value() ||
+    //               opposite_curr->get_key() != curr.get_key()) {
+    //             return;
+    //           }
+    //           auto const opposite_curr_cost =
+    //               opposite_candidate->second.cost(*opposite_curr);
+    //           auto const pred_cost = get_cost<PathDir>(*pred);
+    //           auto const opposite_pred_cost =
+    //               opposite_it->second.cost(neighbor);
+    //           auto const evaluate_meetpoint_with_potential_u_turn_cost =
+    //               [&](osr::cost_t const cost_f, osr::cost_t const cost_b,
+    //               )
+    //     });
+    //   }
+    // };
+
+    // handle_end_of_way_meetpoint();
+ 
     return SearchDir == osr::direction::kForward ? !max_reached_f_ : !max_reached_b_;
   }
 

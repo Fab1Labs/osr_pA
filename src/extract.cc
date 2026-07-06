@@ -699,9 +699,10 @@ void extract(bool const with_platforms,
     }
   }
 
-  pt->status("Big Street Neighbors").in_high(w.n_ways()).out_bounds(95, 99);
+  pt->status("Big Street Neighbors").in_high(w.n_ways()).out_bounds(95, 96);
   w.compute_big_street_neighbors();
 
+  pt->status("CCH Preprocessing").in_high(w.n_ways()).out_bounds(96, 99);
   auto mip_proc = cch::mip_proc{w};
   mip_proc.build_contraction_order();
   mip_proc.init_neighborhoods();
