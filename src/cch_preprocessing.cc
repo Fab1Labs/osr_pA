@@ -14,8 +14,11 @@ void cch::neighborhood::sort_neighbors() {
   if (neighbors_.empty()) {return;}
 
   //sort by increasing rank
-  auto sorting_condition_ = [](auto const& lhs, auto const& rhs) {return std::get<1>(lhs) < std::get<1>(rhs);}; //source: https://stackoverflow.com/questions/23816797/how-does-stdsort-work-for-list-of-pairs#23817006 11.06.2026
-  std::sort(neighbors_.begin(), neighbors_.end(), sorting_condition_);
+  //auto sorting_condition_ = [](auto const& lhs, auto const& rhs) {return std::get<1>(lhs) < std::get<1>(rhs);}; //source: https://stackoverflow.com/questions/23816797/how-does-stdsort-work-for-list-of-pairs#23817006 11.06.2026
+  auto sorting_condition = [](auto const& lhs, auto const& rhs) {
+    return lhs.rank_ < rhs.rank_;
+  };
+  std::sort(neighbors_.begin(), neighbors_.end(), sorting_condition);
 
   // filter duplicates
   auto last_s = std::unique(neighbors_.begin(), neighbors_.end());
@@ -27,38 +30,26 @@ void cch::neighborhood::filter_higher_neighbors() {
   if (neighbors_.empty()) {return;}
 
   neighbors_.erase(std::remove_if(neighbors_.begin(), neighbors_.end(), [this](auto const& n) {
-    return std::get<1>(n) <= this->rank_;
+    //return std::get<1>(n) <= this->rank_;
+    return n.rank_ <= this->rank_;
   }), neighbors_.end());
 }
 
 bool cch::neighborhood::is_neighbor(osr::node_idx_t const& n) {
-  if (neighbors_.empty()) {return true;}
+  if (neighbors_.empty()) {return false;}
 
   bool b = false;
-  for (auto const& node : neighbors_) {b = b or std::get<0>(node) == n;}
+  //for (auto const& node : neighbors_) {b = b or std::get<0>(node) == n;}
+  for (auto const& node : neighbors_) {
+    b = b or node.neighbor_ == n;
+  }
   return b;
 }
 
-void cch::neighborhood::concatenate(neighborhood const& pred) {
-  if (pred.neighbors_.empty()) {return;}
-  utl::verify(node_ == std::get<0>(pred.neighbors_[0]), "not lowest higher ranked neighbor {}", std::get<0>(pred.neighbors_[0]));
-
-  for (auto const& n : pred.neighbors_) {
-    if (std::get<1>(n) <= rank_ || is_neighbor(std::get<0>(n))) {continue;} // only add shortcuts of the direct connection exists and no shortcuts to lower neighbors and to the node itself
-    
-    neighbors_.push_back(std::tuple(std::get<0>(n),     // shortcut target node
-                        std::get<1>(n),                 // target node rank
-                        true,                           // is shortcut
-                        pred.node_,                     // shortcut via node
-                        std::get<4>(pred.neighbors_[0]),// way idx from start to via
-                        std::get<4>(n)));               // way idx from via to target
-  }
-
-  return;
-}
 
 cch::mip_proc::mip_proc(osr::ways& w)
-  : ways_{w} {}
+  : ways_{w},
+    neighbor_counter_{1} {}
 
 // define the contraction order for the preprocessing here
 void cch::mip_proc::build_contraction_order() {
@@ -68,10 +59,13 @@ void cch::mip_proc::build_contraction_order() {
   }
 }
 
-bool cch::mip_proc::is_in(osr::vec<std::tuple<osr::node_idx_t, std::uint32_t, bool, osr::node_idx_t, osr::way_idx_t, osr::way_idx_t>> const& neighbors, osr::node_idx_t const& node) {
-  bool is_in_ = false;
-  for (auto const& n : neighbors) {is_in_ = is_in_ or node == std::get<0>(n);}
-  return is_in_;
+bool cch::mip_proc::is_in(osr::vec<cch::neighbor> const& neighbors,
+                          osr::node_idx_t const& node) {
+  bool is_in = false;
+  for (auto const& n : neighbors) {
+    is_in = is_in or node == n.neighbor_;
+  }
+  return is_in;
 }
 
 bool cch::mip_proc::check_importance(osr::node_idx_t const& lhs, osr::node_idx_t const& rhs) {
@@ -79,35 +73,86 @@ bool cch::mip_proc::check_importance(osr::node_idx_t const& lhs, osr::node_idx_t
 }
 
 void cch::mip_proc::init_neighborhoods() {
-  if (contr_order_.empty()) {return;}
+  if (contr_order_.empty()) { 
+    return;
+  }
 
   //init the neighborhoods from the initial osr graph
   for (auto const [rank, node] : utl::enumerate(contr_order_)) {
     all_neighbors_.push_back(neighborhood{node, static_cast<std::uint32_t>(rank)});
     
     // check for existing neighbors
-    auto const& in_ways_ = ways_.r_->node_ways_[all_neighbors_[rank].node_];
-    auto const& idx_in_ways_ = ways_.r_->node_in_way_idx_[all_neighbors_[rank].node_];
-    if (in_ways_.empty() && idx_in_ways_.empty()) {continue;}
+    auto const& in_ways = ways_.r_->node_ways_[all_neighbors_[rank].node_];
+    auto const& idx_in_ways = ways_.r_->node_in_way_idx_[all_neighbors_[rank].node_];
+    if (in_ways.empty() && idx_in_ways.empty()) {
+      continue;
+    }
 
     // add existing neighbors with higher rank
-    for (auto const [idx, way] : utl::zip(idx_in_ways_, in_ways_)) {
+    for (auto const [idx, way] : utl::zip(idx_in_ways, in_ways)) {
       if (idx > 0) {
-        auto const& pred_ = ways_.r_->way_nodes_[way][idx - 1];
-        if (check_importance(all_neighbors_[rank].node_, pred_) && !is_in(all_neighbors_[rank].neighbors_, pred_)) {
-          all_neighbors_[rank].neighbors_.push_back(std::tuple(pred_, ways_.r_->node_importance_[pred_], false, pred_, way, way));
+        auto const& pred = ways_.r_->way_nodes_[way][idx - 1];
+        if (check_importance(all_neighbors_[rank].node_, pred) && 
+            !is_in(all_neighbors_[rank].neighbors_, pred)) {
+          //all_neighbors_[rank].neighbors_.push_back(std::tuple(pred_, ways_.r_->node_importance_[pred_], false, pred_, way, way));
+          all_neighbors_[rank].neighbors_.push_back(neighbor{
+            .neighbor_ = pred,
+            .rank_ = ways_.r_->node_importance_[pred],
+            .via_ = osr::node_idx_t{0U},
+            .to_via_id_ = 0,
+            .to_neighbor_id_ = 0,
+            .edge_ = way,
+            .dist_ = ways_.get_way_node_distance(way, idx - 1);
+            .dir_ = osr::direction::kBackward,
+            .id_ = neighbor_counter_});
+          ++neighbor_counter_;
         }
       }
       if (idx < ways_.r_->way_nodes_.size() - 1) {
-        auto const& succ_ = ways_.r_->way_nodes_[way][idx + 1];
-        if (check_importance(all_neighbors_[rank].node_, succ_) && !is_in(all_neighbors_[rank].neighbors_, succ_)) {
-          all_neighbors_[rank].neighbors_.push_back(std::tuple(succ_, ways_.r_->node_importance_[succ_], false, succ_, way, way));
+        auto const& succ = ways_.r_->way_nodes_[way][idx + 1];
+        if (check_importance(all_neighbors_[rank].node_, succ) && 
+            !is_in(all_neighbors_[rank].neighbors_, succ)) {
+          //all_neighbors_[rank].neighbors_.push_back(std::tuple(succ, ways_.r_->node_importance_[succ], false, succ, way, way));
+          all_neighbors_[rank].neighbors_.push_back(neighbor{
+            .neighbor_ = succ,
+            .rank_ = ways_.r_->node_importance_[succ],
+            .via_ = osr::node_idx_t{0U},
+            .to_via_id_ = 0,
+            .to_neighbor_id_ = 0,
+            .edge_ = way,
+            .dist_ = ways_.get_way_node_distance(way, idx);
+            .dir_ = osr::direction::kForward,
+            .id_ = neighbor_counter_});
+          ++neighbor_counter_;
         }
       }
     }
   }
+}
 
-  return;
+void cch::mip_proc::concatenate_neighbors(neighborhood const& pred, neighborhood& succ) {
+  if (pred.neighbors_.empty()) {
+    return;
+  }
+  //utl::verify(node_ == std::get<0>(pred.neighbors_[0]), "not lowest higher ranked neighbor {}", std::get<0>(pred.neighbors_[0]));
+  utl::verify(succ.node_ == pred.neighbors_[0].neighbor_, "not lowest higher ranked neighbor {}", pred.neighbors_[0].neighbor_);
+  for (auto const& n : pred.neighbors_) {
+    if (n.rank_ <= succ.rank_ || succ.is_neighbor(n.neighbor_)) {
+      continue;
+    }
+
+    succ.neighbors_.push_back(neighbor{
+      .neighbor_ = n.neighbor_,
+      .rank_ = n.rank_,
+      .via_ = pred.node_,
+      .to_via_id_ = pred.neighbors_[0].id_,
+      .to_neighbor_id_ = n.id_,
+      .edge_ = osr::way_idx_t{0U},
+      .dist_ = osr::distance_t{0U};
+      .dir_ = osr::direction::kForward,
+      .id_ = neighbor_counter_});
+    ++neighbor_counter_;
+  }
 }
 
 void cch::mip_proc::contract_nodes() {
@@ -117,15 +162,18 @@ void cch::mip_proc::contract_nodes() {
       //elimination_tree_.push_back(static_cast<std::uint32_t>(n.rank_));
       continue;
     }
-
     n.sort_neighbors();
-    auto& next = all_neighbors_[std::get<1>(n.neighbors_[0])];
-    
-    next.concatenate(n);
+    //auto& next = all_neighbors_[std::get<1>(n.neighbors_[0])];
+    auto& next = all_neighbors_[ways_.r_->node_importance_[n.neighbors_[0].neighbor_]];
+    concatenate_neighbors(n, next);
     //elimination_tree_.push_back(static_cast<std::uint32_t>(next.rank_));
   }
+}
 
-  return;
+bool cch::mip_proc::is_shortcut(neighbor const& n) {
+  return n.via_ != osr::node_idx_t{0U} &&
+         n.to_via_id_ != 0 &&
+         n.to_neighbor_id_ != 0;
 }
 
 void cch::mip_proc::write_shortcuts(cista::mmap::protection mode) {
@@ -150,19 +198,19 @@ void cch::mip_proc::write_shortcuts(cista::mmap::protection mode) {
   for (auto n : all_neighbors_) {
 
     for (auto neighbor : n.neighbors_) {
-      if (!std::get<2>(neighbor)) {
+      if(!is_shortcut(neighbor)) {
         continue;
       }
       node_shortcuts_up[n.node_].push_back(osr::shortcut_idx_t{shortcut_counter});
-      node_shortcuts_down[std::get<0>(neighbor)].push_back(osr::shortcut_idx_t{shortcut_counter});
+      node_shortcuts_down[neighbor.neighbor_].push_back(osr::shortcut_idx_t{shortcut_counter});
+      shortcut_vec.emplace_back(cch::shortcut_properties{
+        .lower_end_ = n.node_,
+        .via_ = neighbor.via_,
+        .upper_end_ = neighbor.neighbor_,
+        .lower_via_ = osr::shortcut_idx_t{0U},
+        .via_upper_ = osr::shortcut_idx_t{0U}
+      });
       ++shortcut_counter;
-      shortcut_vec.emplace_back(cch::shortcut_properties{.lower_end_ = n.node_, 
-                                 .via_ = std::get<3>(neighbor),
-                                 .upper_end_ = std::get<0>(neighbor),
-                                 .lower_via_ = std::get<4>(neighbor),
-                                 .via_upper_ = std::get<5>(neighbor),
-                                 .costs_up_ = osr::kInfeasible,
-                                 .costs_down_ = osr::kInfeasible});
     }
   }
 
@@ -171,6 +219,8 @@ void cch::mip_proc::write_shortcuts(cista::mmap::protection mode) {
   }
 
   ways_.r_->shortcut_properties_.resize(shortcut_vec.size());
+  ways_.r_->shortcut_cost_car_fw_.resize(shortcut_vec.size());
+  ways_.r_->shortcut_cost_car_bw_.resize(shortcut_vec.size());
   for (auto const [i, sc] : utl::enumerate(shortcut_vec)) {
     ways_.r_->shortcut_properties_[osr::shortcut_idx_t{i}] = sc;
   }
@@ -181,14 +231,3 @@ void cch::mip_proc::write_shortcuts(cista::mmap::protection mode) {
   std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_down_data.bin", e);
   std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_down_index.bin", e);
 }
-
-// void cch::mip_proc::basic_customization() {
-//   if (ways_.r_->shortcut_properties_.size == 0) {
-//     std::cout << "No shortcuts found for customization.\n";
-//     return;
-//   }
-
-//   for (auto const n : all_neighbors_) {
-
-//   }
-// }
