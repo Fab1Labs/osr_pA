@@ -991,7 +991,11 @@ std::optional<path> route(profile_parameters const& params,
                                    sharing, elevations);
       });
     case routing_algorithm::kBidirDijkstra:
-      return std::nullopt;
+      return with_profile(profile, [&]<Profile P>(P&&) {
+        return route_cch_bidir_dijkstra(std::get<typename P::parameters>(params), w, l,
+                                        get_bidir_dijkstra<P>(), from, to, from_match,
+                                        to_match, max, dir, blocked, sharing, elevations);
+      });
   }
   throw utl::fail("not implemented");
 }

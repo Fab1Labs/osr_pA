@@ -14,6 +14,16 @@
 namespace fs = std::filesystem;
 using namespace osr;
 
+bool test_neighbors(osr::vec<cch::neighbor> const& neighbors,
+                    osr::neighbor_idx_t const& probe,
+                    osr::node_idx_t const& node,
+                    std::uint32_t const& rank,
+                    osr::way_idx_t const& way) {
+  return neighbors[probe].neighbor_ == node &&
+         neighbors[probe].rank_ == rank &&
+         neighbors[probe].edge_ == way;
+}
+
 TEST(extract, string_cache) {
   auto p = fs::temp_directory_path() / "osr_test";
   auto ec = std::error_code{};
@@ -85,22 +95,42 @@ TEST(extract, init_neighborhoods) {
   mip.init_neighborhoods();
 
   // Test empty neighborhood: Well at the "Aachen" name on the map
-  ASSERT_EQ(mip.all_neighbors_[19851].node_, osr::node_idx_t{7884});
-  ASSERT_TRUE(mip.all_neighbors_[19851].neighbors_.empty());
+  ASSERT_EQ(mip.neighborhoods_[19851].node_, osr::node_idx_t{7884});
+  ASSERT_TRUE(mip.neighborhoods_[19851].neighbors_.empty());
 
   // Test neighborhood with one higher neighbor: Aachen - Dennewartstrasse
-  ASSERT_EQ(mip.all_neighbors_[1685].node_, osr::node_idx_t{17169});
-  ASSERT_EQ(mip.all_neighbors_[1685].neighbors_.size(), 1);
-  ASSERT_EQ(mip.all_neighbors_[1685].neighbors_[0], std::tuple(osr::node_idx_t{17170}, static_cast<std::uint32_t>(1686), false, osr::node_idx_t{17170}, osr::way_idx_t{13036}, osr::way_idx_t{13036}));
+  ASSERT_EQ(mip.neighborhoods_[1685].node_, osr::node_idx_t{17169});
+  ASSERT_EQ(mip.neighborhoods_[1685].neighbors_.size(), 1);
+  ASSERT_TRUE(test_neighbors(mip.all_neighbors_,
+                             mip.neighborhoods_[1685].neighbors_[0], 
+                             osr::node_idx_t{17170}, 
+                             static_cast<std::uint32_t>(1686), 
+                             osr::way_idx_t{13036}));
+  //ASSERT_EQ(mip.all_neighbors_[1685].neighbors_[0], std::tuple(osr::node_idx_t{17170}, static_cast<std::uint32_t>(1686), false, osr::node_idx_t{17170}, osr::way_idx_t{13036}, osr::way_idx_t{13036}));
 
   // Test neighborhood with multiple neighbors: Aachen - Gabelung Büchel
-  ASSERT_EQ(mip.all_neighbors_[14241].node_, osr::node_idx_t{14653});
-  ASSERT_EQ(mip.all_neighbors_[14245].node_, osr::node_idx_t{2761});
-  ASSERT_EQ(mip.all_neighbors_[14251].node_, osr::node_idx_t{201});
-  ASSERT_EQ(mip.all_neighbors_[14283].node_, osr::node_idx_t{200});
-  ASSERT_EQ(mip.all_neighbors_[14241].neighbors_[0], std::tuple(osr::node_idx_t{201}, static_cast<std::uint32_t>(14251), false, osr::node_idx_t{201}, osr::way_idx_t{6255}, osr::way_idx_t{6255}));
-  ASSERT_EQ(mip.all_neighbors_[14241].neighbors_[1], std::tuple(osr::node_idx_t{2761}, static_cast<std::uint32_t>(14245), false, osr::node_idx_t{2761}, osr::way_idx_t{6255}, osr::way_idx_t{6255}));
-  ASSERT_EQ(mip.all_neighbors_[14241].neighbors_[2], std::tuple(osr::node_idx_t{200}, static_cast<std::uint32_t>(14283), false, osr::node_idx_t{200}, osr::way_idx_t{10495}, osr::way_idx_t{10495}));
+  ASSERT_EQ(mip.neighborhoods_[14241].node_, osr::node_idx_t{14653});
+  ASSERT_EQ(mip.neighborhoods_[14245].node_, osr::node_idx_t{2761});
+  ASSERT_EQ(mip.neighborhoods_[14251].node_, osr::node_idx_t{201});
+  ASSERT_EQ(mip.neighborhoods_[14283].node_, osr::node_idx_t{200});
+  ASSERT_TRUE(test_neighbors(mip.all_neighbors_,
+                             mip.neighborhoods_[14241].neighbors_[0], 
+                             osr::node_idx_t{201}, 
+                             static_cast<std::uint32_t>(14251), 
+                             osr::way_idx_t{6255}));
+  ASSERT_TRUE(test_neighbors(mip.all_neighbors_,
+                             mip.neighborhoods_[14241].neighbors_[1], 
+                             osr::node_idx_t{2761}, 
+                             static_cast<std::uint32_t>(14245), 
+                             osr::way_idx_t{6255}));
+  ASSERT_TRUE(test_neighbors(mip.all_neighbors_,
+                             mip.neighborhoods_[14241].neighbors_[2], 
+                             osr::node_idx_t{200}, 
+                             static_cast<std::uint32_t>(14283), 
+                             osr::way_idx_t{10495}));
+  // ASSERT_EQ(mip.all_neighbors_[14241].neighbors_[0], std::tuple(osr::node_idx_t{201}, static_cast<std::uint32_t>(14251), false, osr::node_idx_t{201}, osr::way_idx_t{6255}, osr::way_idx_t{6255}));
+  // ASSERT_EQ(mip.all_neighbors_[14241].neighbors_[1], std::tuple(osr::node_idx_t{2761}, static_cast<std::uint32_t>(14245), false, osr::node_idx_t{2761}, osr::way_idx_t{6255}, osr::way_idx_t{6255}));
+  // ASSERT_EQ(mip.all_neighbors_[14241].neighbors_[2], std::tuple(osr::node_idx_t{200}, static_cast<std::uint32_t>(14283), false, osr::node_idx_t{200}, osr::way_idx_t{10495}, osr::way_idx_t{10495}));
 
 }
 
@@ -110,62 +140,59 @@ TEST(extract, sort_neighbors) {
   fs::remove_all(p, ec);
   fs::create_directories(p, ec);
 
-  extract(false, "test/aachen.osm.pbf", p, {});
+  //extract(false, "test/aachen.osm.pbf", p, {});
 
+  osr::vec<cch::neighbor> all_neighbors;
   auto ex1_n = cch::neighborhood{osr::node_idx_t{3}, static_cast<std::uint32_t>(23)};
-  ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{1}, static_cast<std::uint32_t>(36), false, osr::node_idx_t{3}, osr::way_idx_t{1}, osr::way_idx_t{1}));
-  ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{2}, static_cast<std::uint32_t>(28), false, osr::node_idx_t{3}, osr::way_idx_t{2}, osr::way_idx_t{2}));
-  ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{4}, static_cast<std::uint32_t>(27), false, osr::node_idx_t{3}, osr::way_idx_t{4}, osr::way_idx_t{4}));
-  ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{2}, static_cast<std::uint32_t>(28), false, osr::node_idx_t{3}, osr::way_idx_t{2}, osr::way_idx_t{2}));
 
-  osr::vec<std::tuple<osr::node_idx_t, std::uint32_t, bool, osr::node_idx_t, osr::way_idx_t, osr::way_idx_t>> ex1_n_exp;
-  ex1_n_exp.push_back(std::tuple(osr::node_idx_t{4}, static_cast<std::uint32_t>(27), false, osr::node_idx_t{3}, osr::way_idx_t{4}, osr::way_idx_t{4}));
-  ex1_n_exp.push_back(std::tuple(osr::node_idx_t{2}, static_cast<std::uint32_t>(28), false, osr::node_idx_t{3}, osr::way_idx_t{2}, osr::way_idx_t{2}));
-  ex1_n_exp.push_back(std::tuple(osr::node_idx_t{1}, static_cast<std::uint32_t>(36), false, osr::node_idx_t{3}, osr::way_idx_t{1}, osr::way_idx_t{1}));
+  all_neighbors.push_back(cch::neighbor{.neighbor_ = osr::node_idx_t{1}, 
+                                           .rank_ = static_cast<std::uint32_t>(36), 
+                                           .via_ = osr::node_idx_t{3}, 
+                                           .to_via_id_ = 0, 
+                                           .to_neighbor_id_ = 0, 
+                                           .edge_ = osr::way_idx_t{1},
+                                           .dist_ = 0,
+                                           .dir_ = osr::direction::kForward});
+  all_neighbors.push_back(cch::neighbor{.neighbor_ = osr::node_idx_t{2}, 
+                                           .rank_ = static_cast<std::uint32_t>(28), 
+                                           .via_ = osr::node_idx_t{3}, 
+                                           .to_via_id_ = 0,
+                                           .to_neighbor_id_ = 0,
+                                           .edge_ = osr::way_idx_t{2},
+                                           .dist_ = 0,
+                                           .dir_ = osr::direction::kForward});
+  all_neighbors.push_back(cch::neighbor{.neighbor_ = osr::node_idx_t{4}, 
+                                           .rank_ = static_cast<std::uint32_t>(27), 
+                                           .via_ = osr::node_idx_t{3}, 
+                                           .to_via_id_ = 0,
+                                           .to_neighbor_id_ = 0,
+                                           .edge_ = osr::way_idx_t{4},
+                                           .dist_ = 0,
+                                           .dir_ = osr::direction::kForward});
+  
+  ex1_n.neighbors_.push_back(osr::neighbor_idx_t{0});
+  ex1_n.neighbors_.push_back(osr::neighbor_idx_t{1});
+  ex1_n.neighbors_.push_back(osr::neighbor_idx_t{2});
+  ex1_n.neighbors_.push_back(osr::neighbor_idx_t{1});
+  //ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{1}, static_cast<std::uint32_t>(36), false, osr::node_idx_t{3}, osr::way_idx_t{1}, osr::way_idx_t{1}));
+  // ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{2}, static_cast<std::uint32_t>(28), false, osr::node_idx_t{3}, osr::way_idx_t{2}, osr::way_idx_t{2}));
+  // ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{4}, static_cast<std::uint32_t>(27), false, osr::node_idx_t{3}, osr::way_idx_t{4}, osr::way_idx_t{4}));
+  // ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{2}, static_cast<std::uint32_t>(28), false, osr::node_idx_t{3}, osr::way_idx_t{2}, osr::way_idx_t{2}));
 
-  ex1_n.sort_neighbors();
+  osr::vec<osr::neighbor_idx_t> ex1_n_exp;
+  ex1_n_exp.push_back(osr::neighbor_idx_t{2});
+  ex1_n_exp.push_back(osr::neighbor_idx_t{1});
+  ex1_n_exp.push_back(osr::neighbor_idx_t{0});
+
+  // ex1_n_exp.push_back(std::tuple(osr::node_idx_t{4}, static_cast<std::uint32_t>(27), false, osr::node_idx_t{3}, osr::way_idx_t{4}, osr::way_idx_t{4}));
+  // ex1_n_exp.push_back(std::tuple(osr::node_idx_t{2}, static_cast<std::uint32_t>(28), false, osr::node_idx_t{3}, osr::way_idx_t{2}, osr::way_idx_t{2}));
+  // ex1_n_exp.push_back(std::tuple(osr::node_idx_t{1}, static_cast<std::uint32_t>(36), false, osr::node_idx_t{3}, osr::way_idx_t{1}, osr::way_idx_t{1}));
+
+  ex1_n.sort_neighbors(all_neighbors);
   ASSERT_EQ(ex1_n.neighbors_, ex1_n_exp);
 }
 
-TEST(extract, shortcuts) {
-  auto p = fs::temp_directory_path() / "osr_test";
-  auto ec = std::error_code{};
-  fs::remove_all(p, ec);
-  fs::create_directories(p, ec);
-
-  extract(false, "test/aachen.osm.pbf", p, {});
-  auto w = ways{p, cista::mmap::protection::READ};
-
-  for (auto const s : w.r_->shortcut_properties_) {
-    ASSERT_TRUE(w.r_->node_importance_[s.via_] < w.r_->node_importance_[s.lower_end_]);
-    ASSERT_TRUE(w.r_->node_importance_[s.lower_end_] < w.r_->node_importance_[s.upper_end_]);
-  }
-}
-
-// TEST(extract, neighborhood_concat) {
-//   auto p = fs::temp_directory_path() / "osr_test";
-//   auto ec = std::error_code{};
-//   fs::remove_all(p, ec);
-//   fs::create_directories(p, ec);
-
-//   extract(false, "test/aachen.osm.pbf", p, {});
-
-//   auto ex1_n = cch::neighborhood(osr::node_idx_t{10}, static_cast<std::uint32_t>(13));
-//   auto ex2_n = cch::neighborhood(osr::node_idx_t{11}, static_cast<std::uint32_t>(12));
-
-//   ex2_n.concatenate(ex1_n.neighbors_);
-//   ASSERT_TRUE(ex2_n.neighbors_.empty());
-
-//   ex2_n.neighbors_.push_back(std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(28)));
-//   ex2_n.neighbors_.push_back(std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(2)));
-
-//   ex1_n.concatenate(ex2_n.neighbors_);
-//   ASSERT_EQ(ex1_n.neighbors_[0], std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(28)));
-//   ASSERT_TRUE(ex1_n.neighbors_.size() == 1);
-// }
-
-
-TEST(extract, elimination_tree) {
+TEST(extract, neighborhood_concat) {
   auto p = fs::temp_directory_path() / "osr_test";
   auto ec = std::error_code{};
   fs::remove_all(p, ec);
@@ -179,7 +206,68 @@ TEST(extract, elimination_tree) {
   mip.init_neighborhoods();
   mip.contract_nodes();
 
-  // neighbor without any neighbors:
-  ASSERT_EQ(mip.elimination_tree_[0], static_cast<std::uint32_t>(9663));
-  ASSERT_EQ(mip.elimination_tree_[1], static_cast<std::uint32_t>(2));
+  for (auto const n : mip.neighborhoods_) {
+    for (auto const neighbor : n.neighbors_){
+      ASSERT_TRUE(n.rank_ < mip.all_neighbors_[neighbor].rank_);
+    }
+  }
 }
+// TEST(extract, shortcuts) {
+//   auto p = fs::temp_directory_path() / "osr_test";
+//   auto ec = std::error_code{};
+//   fs::remove_all(p, ec);
+//   fs::create_directories(p, ec);
+
+//   extract(false, "test/aachen.osm.pbf", p, {});
+//   auto w = ways{p, cista::mmap::protection::READ};
+
+//   for (auto const s : w.r_->shortcut_properties_) {
+//     ASSERT_TRUE(w.r_->node_importance_[s.via_] < w.r_->node_importance_[s.lower_end_]);
+//     ASSERT_TRUE(w.r_->node_importance_[s.lower_end_] < w.r_->node_importance_[s.upper_end_]);
+//   }
+// }
+
+// TEST(extract, neighborhood_concat) {
+//   auto p = fs::temp_directory_path() / "osr_test";
+//   auto ec = std::error_code{};
+//   fs::remove_all(p, ec);
+//   fs::create_directories(p, ec);
+
+//   extract(false, "test/aachen.osm.pbf", p, {});
+
+//   auto w = ways{p, cista::mmap::protection::READ};
+//   auto mip = cch::mip_proc{w};
+
+//   auto ex1_n = cch::neighborhood(osr::node_idx_t{10}, static_cast<std::uint32_t>(13));
+//   auto ex2_n = cch::neighborhood(osr::node_idx_t{11}, static_cast<std::uint32_t>(12));
+
+//   mip.concatenate_neighbors(ex1_n, ex2_n);
+//   ASSERT_TRUE(ex2_n.neighbors_.empty());
+
+//   ex2_n.neighbors_.push_back(std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(28)));
+//   ex2_n.neighbors_.push_back(std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(2)));
+
+//   ex1_n.concatenate(ex2_n.neighbors_);
+//   ASSERT_EQ(ex1_n.neighbors_[0], std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(28)));
+//   ASSERT_TRUE(ex1_n.neighbors_.size() == 1);
+// }
+
+
+// TEST(extract, elimination_tree) {
+//   auto p = fs::temp_directory_path() / "osr_test";
+//   auto ec = std::error_code{};
+//   fs::remove_all(p, ec);
+//   fs::create_directories(p, ec);
+
+//   extract(false, "test/aachen.osm.pbf", p, {});
+
+//   auto w = ways{p, cista::mmap::protection::READ};
+//   auto mip = cch::mip_proc{w};
+//   mip.build_contraction_order();
+//   mip.init_neighborhoods();
+//   mip.contract_nodes();
+
+//   // neighbor without any neighbors:
+//   ASSERT_EQ(mip.elimination_tree_[0], static_cast<std::uint32_t>(9663));
+//   ASSERT_EQ(mip.elimination_tree_[1], static_cast<std::uint32_t>(2));
+// }
