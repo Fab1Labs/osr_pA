@@ -23,7 +23,7 @@ struct neighbor {
   std::uint64_t to_via_id_;
   std::uint64_t to_neighbor_id_;
   osr::way_idx_t edge_;
-  osr::distance_t dist_;
+  std::uint16_t in_way_idx_;
   osr::direction dir_;
 };
 
@@ -60,6 +60,8 @@ struct mip_proc {
   osr::vec<osr::node_idx_t> contr_order_;
   osr::vec<neighborhood> neighborhoods_; // <- sorted by rank
   osr::vec<neighbor> all_neighbors_; // <- identifiable by idx
+  osr::vec<std::uint16_t> in_way_idx_;
+  osr::vec<std::uint16_t> out_way_idx_;
   osr::vec<std::uint32_t> elimination_tree_;
   std::size_t neighbor_counter_;
 };

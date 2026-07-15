@@ -375,7 +375,9 @@ struct ways {
 
     vecvec<node_idx_t, shortcut_idx_t> node_shortcuts_up_;
     vecvec<node_idx_t, shortcut_idx_t> node_shortcuts_down_;
-    vec_map<shortcut_idx_t, cch::shortcut_properties> shortcut_properties_; 
+    vec_map<shortcut_idx_t, cch::shortcut_properties> shortcut_properties_;
+    vec_map<shortcut_idx_t, cost_t> shortcut_cost_car_fw_;
+    vec_map<shortcut_idx_t, cost_t> shortcut_cost_car_bw_;
 
     vec<pair<node_idx_t, level_bits_t>> multi_level_elevators_;
 

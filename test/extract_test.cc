@@ -151,7 +151,7 @@ TEST(extract, sort_neighbors) {
                                            .to_via_id_ = 0, 
                                            .to_neighbor_id_ = 0, 
                                            .edge_ = osr::way_idx_t{1},
-                                           .dist_ = 0,
+                                           .in_way_idx_ = 0,
                                            .dir_ = osr::direction::kForward});
   all_neighbors.push_back(cch::neighbor{.neighbor_ = osr::node_idx_t{2}, 
                                            .rank_ = static_cast<std::uint32_t>(28), 
@@ -159,7 +159,7 @@ TEST(extract, sort_neighbors) {
                                            .to_via_id_ = 0,
                                            .to_neighbor_id_ = 0,
                                            .edge_ = osr::way_idx_t{2},
-                                           .dist_ = 0,
+                                           .in_way_idx_ = 0,
                                            .dir_ = osr::direction::kForward});
   all_neighbors.push_back(cch::neighbor{.neighbor_ = osr::node_idx_t{4}, 
                                            .rank_ = static_cast<std::uint32_t>(27), 
@@ -167,7 +167,7 @@ TEST(extract, sort_neighbors) {
                                            .to_via_id_ = 0,
                                            .to_neighbor_id_ = 0,
                                            .edge_ = osr::way_idx_t{4},
-                                           .dist_ = 0,
+                                           .in_way_idx_ = 0,
                                            .dir_ = osr::direction::kForward});
   
   ex1_n.neighbors_.push_back(osr::neighbor_idx_t{0});

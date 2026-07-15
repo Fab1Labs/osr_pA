@@ -103,12 +103,8 @@ void cch::mip_proc::init_neighborhoods() {
             .to_via_id_ = 0,
             .to_neighbor_id_ = 0,
             .edge_ = way,
-            .dist_ = ways_.r_->get_way_node_distance(way, idx - 1),
+            .in_way_idx_ = static_cast<std::uint16_t>(idx - 1),
             .dir_ = osr::direction::kBackward});
-          utl::verify(all_neighbors_[neighbor_counter_].neighbor_ == pred,
-                      "neighbor {} at {} does not equal expected neighbor {}",
-                      all_neighbors_[neighbor_counter_].neighbor_,
-                      neighbor_counter_, pred);
           ++neighbor_counter_;
         }
       }
@@ -124,12 +120,8 @@ void cch::mip_proc::init_neighborhoods() {
             .to_via_id_ = 0,
             .to_neighbor_id_ = 0,
             .edge_ = way,
-            .dist_ = ways_.r_->get_way_node_distance(way, idx),
+            .in_way_idx_ = static_cast<std::uint16_t>(idx),
             .dir_ = osr::direction::kForward});
-          utl::verify(all_neighbors_[neighbor_counter_].neighbor_ == succ,
-                      "neighbor {} at {} does not equal expected neighbor {}",
-                      all_neighbors_[neighbor_counter_].neighbor_,
-                      neighbor_counter_, succ);
           ++neighbor_counter_;
         }
       }
@@ -160,7 +152,7 @@ void cch::mip_proc::concatenate_neighbors(neighborhood const& pred, neighborhood
       .to_via_id_ = pred.neighbors_[0],
       .to_neighbor_id_ = n,
       .edge_ = osr::way_idx_t{0U},
-      .dist_ = osr::distance_t{0U},
+      .in_way_idx_ = 0,
       .dir_ = osr::direction::kForward});
     ++neighbor_counter_;
   }

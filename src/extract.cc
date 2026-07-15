@@ -30,11 +30,14 @@
 
 #include "osr/elevation_storage.h"
 #include "osr/extract/tags.h"
+#include "osr/routing/profiles/car.h"
+#include "osr/routing/parameters.h"
 #include "osr/lookup.h"
 #include "osr/platforms.h"
 #include "osr/preprocessing/elevation/provider.h"
 #include "osr/ways.h"
 #include "osr/cch_preprocessing.h"
+#include "osr/cch_customization.h"
 
 namespace osm = osmium;
 namespace osm_io = osmium::io;
@@ -702,23 +705,25 @@ void extract(bool const with_platforms,
   pt->status("Big Street Neighbors").in_high(w.n_ways()).out_bounds(95, 96);
   w.compute_big_street_neighbors();
 
-  pt->status("CCH Preprocessing").in_high(w.n_ways()).out_bounds(96, 99);
+  pt->status("CCH Preprocessing").in_high(w.n_ways()).out_bounds(96, 97);
   auto mip_proc = cch::mip_proc{w};
   mip_proc.build_contraction_order();
   mip_proc.init_neighborhoods();
   mip_proc.contract_nodes();
-  mip_proc.write_shortcuts(cista::mmap::protection::WRITE);
+  //mip_proc.write_shortcuts(cista::mmap::protection::WRITE);
+
+  pt->status("CCH Customization").in_high(w.n_ways()).out_bounds(97, 99);
+  auto profile = search_profile::kCar;
+  auto params = get_parameters(profile);
+  //auto pp = std::get<typename car::parameters>(params);
+
+
+  auto customization = cch::basic_customization{w, mip_proc};
+  customization.run(profile, params);
   w.r_->write(out);
 
   pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
   lookup{w, out, cista::mmap::protection::WRITE}.build_rtree();
-
-  // insert the metric independent preprocessing at the end of the extract step
-  //pt->status("CCH metric-independent preprocessing").in_high(1).out_bounds(99, 100);
-  
-
-  // store the shortcut information in own cista files:
-
 }
 
 }  // namespace osr

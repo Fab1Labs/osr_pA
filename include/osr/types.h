@@ -101,6 +101,8 @@ using way_pos_t = std::uint8_t;
 
 using cost_t = std::uint32_t;
 
+using neighbor_idx_t = std::uint64_t;
+
 constexpr auto const kInfeasible = std::numeric_limits<cost_t>::max();
 
 template <typename T>
@@ -114,6 +116,12 @@ enum class direction : std::uint8_t {
   kBackward,
 };
 
+// shortcut direction
+enum class sc_direction : std::uint8_t {
+  kUpward,
+  kDownward,
+};
+
 inline std::ostream& operator<<(std::ostream& out, direction const d) {
   return out << (d == direction::kBackward ? "bwd" : "fwd");
 }
@@ -121,6 +129,11 @@ inline std::ostream& operator<<(std::ostream& out, direction const d) {
 constexpr direction opposite(direction const dir) {
   return dir == direction::kForward ? direction::kBackward
                                     : direction::kForward;
+}
+
+constexpr sc_direction opposite(sc_direction const dir) {
+  return dir == sc_direction::kUpward ? sc_direction::kUpward
+                                      : sc_direction::kDownward;
 }
 
 template <direction Dir>
