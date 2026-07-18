@@ -50,7 +50,7 @@ struct mip_proc {
   void init_neighborhoods();
   void concatenate_neighbors(neighborhood const& pred, neighborhood& succ);
   void contract_nodes();
-  void write_shortcuts(cista::mmap::protection);;
+  void write_shortcuts(cista::mmap::protection);
 
   cista::mmap mm(char const* file, cista::mmap::protection mode) {
     return cista::mmap{(ways_.p_ / file).generic_string().c_str(), mode};
@@ -63,7 +63,6 @@ struct mip_proc {
   osr::vec<std::uint16_t> in_way_idx_;
   osr::vec<std::uint16_t> out_way_idx_;
   osr::vec<std::uint32_t> elimination_tree_;
-  std::size_t neighbor_counter_;
 };
 
 } //namespace cch
