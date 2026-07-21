@@ -33,7 +33,8 @@ void cch::neighborhood::sort_neighbors(osr::vec<neighbor>& nvec) {
 
 
 cch::mip_proc::mip_proc(osr::ways& w)
-  : ways_{w} {}
+  : ways_{w},
+    max_neighbors_{0} {}
 
 // define the contraction order for the preprocessing here
 void cch::mip_proc::build_contraction_order() {
@@ -163,11 +164,13 @@ void cch::mip_proc::contract_nodes() {
       continue;
     }
     n.sort_neighbors(all_neighbors_);
+    if (max_neighbors_ < n.neighbors_.size()) {max_neighbors_ = n.neighbors_.size();}
     auto const succ_rank = all_neighbors_[n.neighbors_[0]].rank_;
     auto& next = neighborhoods_[succ_rank];
     concatenate_neighbors(n, next);
     //elimination_tree_.push_back(static_cast<std::uint32_t>(next.rank_));
   }
+  std::cout << "max neighbors: " << max_neighbors_;
 }
 
 bool cch::mip_proc::is_shortcut(neighbor const& n) {
@@ -176,55 +179,67 @@ bool cch::mip_proc::is_shortcut(neighbor const& n) {
          n.to_neighbor_id_ != 0;
 }
 
-void cch::mip_proc::write_shortcuts(cista::mmap::protection mode) {
-  std::vector<cch::shortcut_properties> shortcut_vec;
+// void cch::mip_proc::write_shortcuts(cista::mmap::protection mode) {
+//   std::vector<cch::shortcut_properties> shortcut_vec;
 
-  auto node_shortcuts_up = osr::mm_paged_vecvec<osr::node_idx_t, osr::shortcut_idx_t>{
-    cista::paged<osr::mm_vec32<osr::shortcut_idx_t>>{
-        osr::mm_vec32<osr::shortcut_idx_t>{mm("tmp_node_shortcuts_up_data.bin", mode)}},
-    osr::mm_vec<cista::page<std::uint32_t, std::uint16_t>>{
-        mm("tmp_node_shortcuts_up_index.bin", mode)}};
+//   auto node_shortcuts_up = osr::mm_paged_vecvec<osr::node_idx_t, osr::shortcut_idx_t>{
+//     cista::paged<osr::mm_vec32<osr::shortcut_idx_t>>{
+//         osr::mm_vec32<osr::shortcut_idx_t>{mm("tmp_node_shortcuts_up_data.bin", mode)}},
+//     osr::mm_vec<cista::page<std::uint32_t, std::uint16_t>>{
+//         mm("tmp_node_shortcuts_up_index.bin", mode)}};
 
-  auto node_shortcuts_down = osr::mm_paged_vecvec<osr::node_idx_t, osr::shortcut_idx_t>{
-    cista::paged<osr::mm_vec32<osr::shortcut_idx_t>>{
-        osr::mm_vec32<osr::shortcut_idx_t>{mm("tmp_node_shortcuts_down_data.bin", mode)}},
-    osr::mm_vec<cista::page<std::uint32_t, std::uint16_t>>{
-        mm("tmp_node_shortcuts_down_index.bin", mode)}};
+//   auto node_shortcuts_down = osr::mm_paged_vecvec<osr::node_idx_t, osr::shortcut_idx_t>{
+//     cista::paged<osr::mm_vec32<osr::shortcut_idx_t>>{
+//         osr::mm_vec32<osr::shortcut_idx_t>{mm("tmp_node_shortcuts_down_data.bin", mode)}},
+//     osr::mm_vec<cista::page<std::uint32_t, std::uint16_t>>{
+//         mm("tmp_node_shortcuts_down_index.bin", mode)}};
 
-  node_shortcuts_up.resize(ways_.node_to_osm_.size());
-  node_shortcuts_down.resize(ways_.node_to_osm_.size());
+//   node_shortcuts_up.resize(ways_.node_to_osm_.size());
+//   node_shortcuts_down.resize(ways_.node_to_osm_.size());
+//   ways_.r_->shortcut_properties_.resize(all_neighbors_.size());
 
-  for (auto n : neighborhoods_) {
-    for (auto neighbor : n.neighbors_) {
-      node_shortcuts_up[n.node_].push_back(static_cast<osr::shortcut_idx_t>(neighbor));
-      node_shortcuts_down[all_neighbors_[neighbor].neighbor_].push_back(static_cast<osr::shortcut_idx_t>(neighbor));
-    }
-  }
+//   for (auto n : neighborhoods_) {
+//     for (auto neighbor : n.neighbors_) {
+//       node_shortcuts_up[n.node_].push_back(static_cast<osr::shortcut_idx_t>(neighbor));
+//       node_shortcuts_down[all_neighbors_[neighbor].neighbor_].push_back(static_cast<osr::shortcut_idx_t>(neighbor));
+//       // auto const& neighbor_struct = all_neighbors_[neighbor];
+//       // ways_.r_->shortcut_properties_[osr::shortcut_idx_t{neighbor}] = shortcut_properties{
+//       //   .lower_end_ = n.node_,
+//       //   .upper_end_ = neighbor_struct.neighbor_,
+//       //   .via_ = neighbor_struct.via_,
+//       //   .lower_via_ = osr::shortcut_idx_t{neighbor_struct.to_via_id_},
+//       //   .via_upper_ = osr::shortcut_idx_t{neighbor_struct.to_neighbor_id_},
+//       //   .edge_ = neighbor_struct.edge_,
+//       //   .dir_ = neighbor_struct.dir_,
+//       //   .in_way_idx_ = neighbor_struct.in_way_idx_,
+//       // };
+//     }
+//   }
 
-  for (auto const x : node_shortcuts_up) {
-    ways_.r_->node_shortcuts_up_.emplace_back(x);
-  }
-  for (auto const x : node_shortcuts_down) {
-    ways_.r_->node_shortcuts_down_.emplace_back(x);
-  }
+//   for (auto const x : node_shortcuts_up) {
+//     ways_.r_->node_shortcuts_up_.emplace_back(x);
+//   }
+//   for (auto const x : node_shortcuts_down) {
+//     ways_.r_->node_shortcuts_down_.emplace_back(x);
+//   }
 
-  ways_.r_->shortcut_properties_.resize(all_neighbors_.size());
-  ways_.r_->shortcut_cost_car_fw_.resize(all_neighbors_.size());
-  ways_.r_->shortcut_cost_car_bw_.resize(all_neighbors_.size());
-  for (auto const [i, neighbor] : utl::enumerate(all_neighbors_)) {
-    ways_.r_->shortcut_properties_[osr::shortcut_idx_t{i}] = shortcut_properties{
-        .via_ = all_neighbors_[i].via_,
-        .lower_via_ = osr::shortcut_idx_t{all_neighbors_[i].to_via_id_},
-        .via_upper_ = osr::shortcut_idx_t{all_neighbors_[i].to_neighbor_id_},
-        .edge_ = all_neighbors_[i].edge_,
-        .dir_ = all_neighbors_[i].dir_,
-        .in_way_idx_ = all_neighbors_[i].in_way_idx_,
-      };
-  }
+//   ways_.r_->shortcut_cost_car_up_.resize(all_neighbors_.size());
+//   ways_.r_->shortcut_cost_car_down_.resize(all_neighbors_.size());
+//   std::cout << "reached the first resize operator";
+//   for (auto const [i, neighbor] : utl::enumerate(all_neighbors_)) {
+//     ways_.r_->shortcut_properties_[osr::shortcut_idx_t{i}] = shortcut_properties{
+//         .via_ = neighbor.via_,
+//         .lower_via_ = osr::shortcut_idx_t{neighbor.to_via_id_},
+//         .via_upper_ = osr::shortcut_idx_t{neighbor.to_neighbor_id_},
+//         .edge_ = neighbor.edge_,
+//         .dir_ = neighbor.dir_,
+//         .in_way_idx_ = neighbor.in_way_idx_,
+//       };
+//   }
 
-  auto e = std::error_code{};
-  std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_up_data.bin", e);
-  std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_up_index.bin", e);
-  std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_down_data.bin", e);
-  std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_down_index.bin", e);
-}
+//   auto e = std::error_code{};
+//   std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_up_data.bin", e);
+//   std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_up_index.bin", e);
+//   std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_down_data.bin", e);
+//   std::filesystem::remove(ways_.p_ / "tmp_node_shortcuts_down_index.bin", e);
+// }

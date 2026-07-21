@@ -36,6 +36,7 @@ struct neighborhood {
   osr::node_idx_t const node_;
   std::uint32_t const rank_;
   osr::vec<osr::neighbor_idx_t> neighbors_;
+  osr::vec<osr::shortcut_idx_t> shortcuts_;
 };
 
 struct mip_proc {
@@ -63,6 +64,7 @@ struct mip_proc {
   osr::vec<std::uint16_t> in_way_idx_;
   osr::vec<std::uint16_t> out_way_idx_;
   osr::vec<std::uint32_t> elimination_tree_;
+  std::uint64_t max_neighbors_;
 };
 
 } //namespace cch

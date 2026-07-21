@@ -715,15 +715,14 @@ void extract(bool const with_platforms,
   pt->status("CCH Customization").in_high(w.n_ways()).out_bounds(97, 99);
   auto profile = search_profile::kCar;
   auto params = get_parameters(profile);
-  //auto pp = std::get<typename car::parameters>(params);
-
-
   auto customization = cch::basic_customization{w, mip_proc};
   customization.run(profile, params);
   w.r_->write(out);
 
   pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
   lookup{w, out, cista::mmap::protection::WRITE}.build_rtree();
+  std::cout << "Original length: " << mip_proc.all_neighbors_.size() << "\nNew length: " << w.r_->shortcut_properties_.size() << "\nAmount of ways: " << w.r_->way_properties_.size();
+    
 }
 
 }  // namespace osr
