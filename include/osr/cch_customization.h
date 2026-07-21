@@ -230,8 +230,12 @@ struct basic_customization {
           .dir_ = neighbor_struct.dir_,
           .in_way_idx_ = neighbor_struct.in_way_idx_}
         );
+        ways_.r_->shortcut_costs_up_.push_back(neighbor_costs_up_[neighbor]);
+        ways_.r_->shortcut_costs_down_.push_back(neighbor_costs_down_[neighbor]);
       }
     }
+
+    // customize the rest of the given shortcuts without the entry cost:
     // for (auto const& node : prep_.neighborhoods_) {
     //   customize(node);
     // }
@@ -243,18 +247,6 @@ struct basic_customization {
       auto const& pp = std::get<typename P::parameters>(params);
       return run<P>(pp);
     });
-  }
-
-  void export_costs() {
-    if (neighbor_costs_up_.empty() && neighbor_costs_down_.empty()) {
-      return;
-    }
-    for (auto const [id, entry] : utl::enumerate(neighbor_costs_up_)) {
-      ways_.r_->shortcut_cost_car_up_[osr::shortcut_idx_t{id}] = entry;
-    }
-    for (auto const [id, entry] : utl::enumerate(neighbor_costs_down_)) {
-      ways_.r_->shortcut_cost_car_down_[osr::shortcut_idx_t{id}] = entry;
-    }
   }
 
   osr::ways& ways_;
