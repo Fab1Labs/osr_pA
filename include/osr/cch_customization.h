@@ -135,42 +135,6 @@ struct basic_customization {
     }
   }
 
-  void customize(cch::neighborhood const& node) {
-    if (node.neighbors_.empty()) {
-      return;
-    }
-
-    auto const find_shortest = [&](osr::vec<osr::neighbor_idx_t> const neighbors, 
-                                   std::size_t idx, osr::cost_t const neighbor_costs,
-                                   osr::vec<osr::cost_t> all_costs) {
-      auto const& curr_struct = prep_.all_neighbors_[neighbors[idx]];
-      for (auto i = idx + 1; i < neighbors.size(); ++i) {
-        auto const& next_struct = prep_.all_neighbors_[neighbors[i]];
-        if (!(curr_struct.neighbor_ == next_struct.neighbor_ && 
-            curr_struct.via_ == next_struct.neighbor_)) {
-          continue;
-        }
-        if (all_costs[neighbors[i]] >= neighbor_costs) {
-          all_costs[neighbors[i]] = osr::kInfeasible;
-        } else {
-          all_costs[neighbors[idx]] = osr::kInfeasible;
-          break;
-        }
-      }
-    };
-
-    for (auto const [idx, neighbor] : utl::enumerate(node.neighbors_)) {
-      auto const& costs_up = neighbor_costs_up_[neighbor];
-      auto const& costs_down = neighbor_costs_down_[neighbor];
-      if (costs_up != osr::kInfeasible) {
-        find_shortest(node.neighbors_, idx, costs_up, neighbor_costs_up_);
-      }
-      if (costs_down != osr::kInfeasible) {
-        find_shortest(node.neighbors_, idx, costs_down, neighbor_costs_down_);
-      }
-    }
-  }
-
   template <typename Fn>
   auto with_valid_profile(osr::search_profile const p, Fn&& fn) {
     if (p == osr::search_profile::kCar) {
@@ -232,13 +196,50 @@ struct basic_customization {
         );
         ways_.r_->shortcut_costs_up_.push_back(neighbor_costs_up_[neighbor]);
         ways_.r_->shortcut_costs_down_.push_back(neighbor_costs_down_[neighbor]);
+        ways_.r_->in_shortcut_.push_back(cch::shortcut_nav_infos{
+          .way_ = way_in_neighbor_[neighbor],
+          .dir_ = dir_in_neighbor_[neighbor]
+        });
+        ways_.r_->out_shortcut_.push_back(cch::shortcut_nav_infos{
+          .way_ = way_out_neighbor_[neighbor],
+          .dir_ = dir_out_neighbor_[neighbor]
+        });
       }
     }
 
-    // customize the rest of the given shortcuts without the entry cost:
-    // for (auto const& node : prep_.neighborhoods_) {
-    //   customize(node);
-    // }
+    // compare shortcuts with same lower-, via- and upper node and set the higher costs to infeasible
+    auto const& find_shortest = [&](auto const shortcuts, std::size_t const idx,
+                                    osr::cost_t const sc_cost, 
+                                    osr::vec<osr::cost_t> all_costs) {
+      auto const& curr_struct = ways_.r_->shortcut_properties_[shortcuts[idx]];
+      for (auto i = idx + 1; i < shortcuts.size(); ++i) {
+        auto const& next_struct = ways_.r_->shortcut_properties_[shortcuts[i]];
+        if (!(curr_struct.upper_end_ == next_struct.upper_end_ &&
+              curr_struct.via_ == next_struct.via_)) {
+          continue;
+        }
+        if (all_costs[shortcuts[i]] >= sc_cost) {
+          all_costs[shortcuts[i]] = osr::kInfeasible;
+        } else {
+          all_costs[shortcuts[idx]] = osr::kInfeasible;
+          break;
+        }
+      }
+    };
+
+    // customize the given shortcuts here:
+    for (auto const& n : ways_.r_->node_shortcuts_up_) {
+      for (auto const [idx, sc] : utl::enumerate(n)) {
+        auto const& cost_up = ways_.r_->shortcut_costs_up_[sc];
+        auto const& cost_dwn = ways_.r_->shortcut_costs_down_[sc];
+        if (cost_up != osr::kInfeasible) {
+          find_shortest(n, idx, cost_up, ways_.r_->shortcut_costs_up_);
+        }
+        if(cost_dwn != osr::kInfeasible) {
+          find_shortest(n, idx, cost_dwn, ways_.r_->shortcut_costs_down_);
+        }
+      }
+    }
     return;
   }
 

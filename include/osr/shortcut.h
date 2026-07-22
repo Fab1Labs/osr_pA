@@ -16,4 +16,9 @@ struct shortcut_properties {
   std::uint16_t in_way_idx_;
 };
 
+struct shortcut_nav_infos {
+  osr::way_idx_t way_;
+  osr::direction dir_;
+};
+
 } // namespace cch

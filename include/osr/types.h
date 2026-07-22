@@ -88,8 +88,6 @@ using component_idx_t = cista::strong<std::uint32_t, struct component_idx_>;
 
 using platform_idx_t = cista::strong<std::uint32_t, struct platform_idx_>;
 
-using shortcut_idx_t = cista::strong<std::uint32_t, struct shortcut_idx_>;
-
 using multi_level_elevator_idx_t =
     cista::strong<std::uint32_t, struct multi_level_elevator_idx_>;
 
@@ -102,6 +100,8 @@ using way_pos_t = std::uint8_t;
 using cost_t = std::uint32_t;
 
 using neighbor_idx_t = std::uint64_t;
+
+using shortcut_idx_t = std::uint32_t;
 
 constexpr auto const kInfeasible = std::numeric_limits<cost_t>::max();
 
