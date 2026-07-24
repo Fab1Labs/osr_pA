@@ -512,13 +512,13 @@ std::optional<path> route_bidirectional(typename P::parameters const& params,
     if (b.max_reached_1_ && component_seen(w, from_match, i)) {
       continue;
     }
-    auto const start_way = start.way_;
+
     for (auto const* nc : {&start.left_, &start.right_}) {
       if (nc->valid() && nc->cost_ < max) {
         P::resolve_start_node(
             *w.r_, start.way_, nc->node_, from.lvl_, dir, [&](auto const node) {
               auto label = typename P::label{node, nc->cost_};
-              label.track(label, *w.r_, start_way, node.get_node(), false);
+              label.track(label, *w.r_, start.way_, node.get_node(), false);
               b.add_start(params, w, label, sharing);                       // add start nodes here and the previous lines
             });
       }
@@ -537,14 +537,14 @@ std::optional<path> route_bidirectional(typename P::parameters const& params,
           j > kBottomKDefinitelyConsidered) {
         break;
       }
-      auto const end_way = end.way_;
+
       for (auto const* nc : {&end.left_, &end.right_}) {
         if (nc->valid() && nc->cost_ < max) {
           P::resolve_start_node(
-              *w.r_, end_way, nc->node_, to.lvl_, opposite(dir),
+              *w.r_, end.way_, nc->node_, to.lvl_, opposite(dir),
               [&](auto const node) {
                 auto label = typename P::label{node, nc->cost_};
-                label.track(label, *w.r_, end_way, node.get_node(), false);
+                label.track(label, *w.r_, end.way_, node.get_node(), false);
                 b.add_end(params, w, label, sharing);                     // add end nodes 
               });
         }
@@ -685,7 +685,6 @@ std::optional<path> route_cch_bidir_dijkstra(typename P::parameters const& param
       if (b.pq_f_.empty()) {
         continue;
       }
-
       for (auto const [j, end] : utl::enumerate(to_match)) {
         if (w.r_->way_component_[start.way_] != w.r_->way_component_[end.way_]) {
           continue;
@@ -936,7 +935,7 @@ std::optional<path> route_cch_bidir_dijkstra(profile_parameters const& params,
                                             bitvec<node_idx_t> const* blocked,
                                             sharing_data const* sharing, 
                                             elevation_storage const* elevations) {
-  return with_profile(profile, [&]<Profile P>(P&&) -> std::optional<path> {
+  return with_valid_cch_profile(profile, [&]<Profile P>(P&&) -> std::optional<path> {
     auto const& pp = std::get<typename P::parameters>(params);
     auto const from_match = 
         l.match<P>(pp, from, false, dir, max_match_distance, blocked);
@@ -991,7 +990,7 @@ std::optional<path> route(profile_parameters const& params,
                                    sharing, elevations);
       });
     case routing_algorithm::kBidirDijkstra:
-      return with_profile(profile, [&]<Profile P>(P&&) {
+      return with_valid_cch_profile(profile, [&]<Profile P>(P&&) {
         return route_cch_bidir_dijkstra(std::get<typename P::parameters>(params), w, l,
                                         get_bidir_dijkstra<P>(), from, to, from_match,
                                         to_match, max, dir, blocked, sharing, elevations);
@@ -1018,6 +1017,12 @@ std::optional<path> route(profile_parameters const& params,
       profile == search_profile::kCarParkingWheelchair ||
       profile == search_profile::kCarParking) {
     algo = routing_algorithm::kDijkstra;  // TODO
+  }
+  // Check if cch is used with invalid profiles
+  if (algo == routing_algorithm::kBidirDijkstra &&
+      profile != search_profile::kBus &&
+      profile != search_profile::kCar) {
+    algo = routing_algorithm::kDijkstra;
   }
   switch (algo) {
     case routing_algorithm::kDijkstra:

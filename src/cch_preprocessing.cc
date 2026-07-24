@@ -178,3 +178,5 @@ bool cch::mip_proc::is_shortcut(neighbor const& n) {
          n.to_via_id_ != 0 &&
          n.to_neighbor_id_ != 0;
 }
+
+// ./build/osr-extract -i ./test/aachen.osm.pbf -o ./test/aachen

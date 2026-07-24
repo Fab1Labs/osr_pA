@@ -705,6 +705,7 @@ void extract(bool const with_platforms,
   pt->status("Big Street Neighbors").in_high(w.n_ways()).out_bounds(95, 96);
   w.compute_big_street_neighbors();
 
+  //std::cout << "Nodes: " << w.r_->node_properties_.size();
   pt->status("CCH Preprocessing").in_high(w.n_ways()).out_bounds(96, 97);
   auto mip_proc = cch::mip_proc{w};
   mip_proc.build_contraction_order();
@@ -721,7 +722,7 @@ void extract(bool const with_platforms,
 
   pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
   lookup{w, out, cista::mmap::protection::WRITE}.build_rtree();
-  std::cout << "Original length: " << mip_proc.all_neighbors_.size() << "\nNew length: " << w.r_->shortcut_properties_.size() << "\nAmount of ways: " << w.r_->way_properties_.size();
+  //std::cout << "Original length: " << mip_proc.all_neighbors_.size() << "\nNew length: " << w.r_->shortcut_properties_.size() << "\nAmount of ways: " << w.r_->way_properties_.size();
     
 }
 

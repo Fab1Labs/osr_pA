@@ -6,6 +6,7 @@
 
 #include <filesystem>
 #include <random>
+#include <iostream>
 
 #include "cista/mmap.h"
 
@@ -42,6 +43,7 @@ void load(std::string_view raw_data, std::string_view data_dir) {
     fs::remove_all(p, ec);
     fs::create_directories(p, ec);
     osr::extract(false, raw_data, data_dir, fs::path{});
+    std::cout << "Extraction finished!";
   }
 }
 
@@ -228,6 +230,23 @@ TEST(dijkstra_astarbidir, monaco_bwd) {
 TEST(dijkstra_astarbidir, hamburg) {
   auto const raw_data = "test/hamburg.osm.pbf";
   auto const data_dir = "test/hamburg";
+  auto const num_samples = 500U;
+  auto const max_cost = 3 * 3600U;
+  auto constexpr dir = direction::kForward;
+
+  if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
+    GTEST_SKIP() << raw_data << " not found";
+  }
+
+  load(raw_data, data_dir);
+  auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
+  auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
+
+  run(w, l, num_samples, max_cost, dir);
+}
+TEST(dijkstra_astarbidir, aachen) {
+  auto const raw_data = "test/aachen.osm.pbf";
+  auto const data_dir = "test/aachen";
   auto const num_samples = 500U;
   auto const max_cost = 3 * 3600U;
   auto constexpr dir = direction::kForward;

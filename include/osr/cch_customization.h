@@ -135,18 +135,6 @@ struct basic_customization {
     }
   }
 
-  template <typename Fn>
-  auto with_valid_profile(osr::search_profile const p, Fn&& fn) {
-    if (p == osr::search_profile::kCar) {
-      return fn(osr::car{});
-    }
-    if (p == osr::search_profile::kBus) {
-      return fn(osr::bus{});
-    }
-
-    throw utl::fail("cch customization is not implemented for profile {}.", to_str(p));
-  }
-
   template<osr::Profile P>
   void run(typename P::parameters const& params) {
     auto const neighbor_size = prep_.all_neighbors_.size();
@@ -214,13 +202,17 @@ struct basic_customization {
       auto const& curr_struct = ways_.r_->shortcut_properties_[shortcuts[idx]];
       for (auto i = idx + 1; i < shortcuts.size(); ++i) {
         auto const& next_struct = ways_.r_->shortcut_properties_[shortcuts[i]];
+        // filter direct connections and sc via different nodes here:
         if (!(curr_struct.upper_end_ == next_struct.upper_end_ &&
               curr_struct.via_ == next_struct.via_)) {
           continue;
         }
-        if (all_costs[shortcuts[i]] >= sc_cost) {
+        // only change costs, if they are not equal:
+        if (all_costs[shortcuts[i]] > sc_cost) {
           all_costs[shortcuts[i]] = osr::kInfeasible;
-        } else {
+          continue;
+        }
+        if (all_costs[shortcuts[i] < sc_cost]) {
           all_costs[shortcuts[idx]] = osr::kInfeasible;
           break;
         }
@@ -244,7 +236,7 @@ struct basic_customization {
   }
 
   void run(osr::search_profile const& profile, osr::profile_parameters const& params) {
-    return with_valid_profile(profile, [&]<osr::Profile P>(P&&) {
+    return with_valid_cch_profile(profile, [&]<osr::Profile P>(P&&) {
       auto const& pp = std::get<typename P::parameters>(params);
       return run<P>(pp);
     });
