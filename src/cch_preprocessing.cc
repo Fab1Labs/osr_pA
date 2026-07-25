@@ -170,7 +170,7 @@ void cch::mip_proc::contract_nodes() {
     concatenate_neighbors(n, next);
     //elimination_tree_.push_back(static_cast<std::uint32_t>(next.rank_));
   }
-  std::cout << "max neighbors: " << max_neighbors_;
+  //std::cout << "max neighbors: " << max_neighbors_;
 }
 
 bool cch::mip_proc::is_shortcut(neighbor const& n) {

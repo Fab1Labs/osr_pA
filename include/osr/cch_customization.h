@@ -89,14 +89,15 @@ struct basic_customization {
         neighbor_costs_down_[nidx] = osr::clamp_cost(static_cast<std::uint64_t>(wc_down)) + lower_nc;
       }
     } else { // handle concatenated neighbor (shortcut)
-      //  calculate upward costs: 
+      // calculate upward costs: 
       auto const& to_via_c_up = neighbor_costs_down_[next.to_via_id_];
       auto const& to_neighbor_c_up = neighbor_costs_up_[next.to_neighbor_id_];
 
       auto const& from_lower_to_via = way_in_neighbor_[next.to_via_id_];
       auto const& from_via_to_upper = way_in_neighbor_[next.to_neighbor_id_];
 
-      auto const is_u_turn = from_lower_to_via == from_via_to_upper;
+      auto const is_u_turn = from_lower_to_via == from_via_to_upper && 
+                             dir_in_neighbor_[next.to_via_id_] != dir_in_neighbor_[next.to_neighbor_id_];
 
       if (to_via_c_up == osr::kInfeasible || to_neighbor_c_up == osr::kInfeasible) {
         neighbor_costs_up_[nidx] = osr::kInfeasible;
@@ -196,42 +197,42 @@ struct basic_customization {
     }
 
     // compare shortcuts with same lower-, via- and upper node and set the higher costs to infeasible
-    auto const& find_shortest = [&](auto const shortcuts, std::size_t const idx,
-                                    osr::cost_t const sc_cost, 
-                                    osr::vec<osr::cost_t> all_costs) {
-      auto const& curr_struct = ways_.r_->shortcut_properties_[shortcuts[idx]];
-      for (auto i = idx + 1; i < shortcuts.size(); ++i) {
-        auto const& next_struct = ways_.r_->shortcut_properties_[shortcuts[i]];
-        // filter direct connections and sc via different nodes here:
-        if (!(curr_struct.upper_end_ == next_struct.upper_end_ &&
-              curr_struct.via_ == next_struct.via_)) {
-          continue;
-        }
-        // only change costs, if they are not equal:
-        if (all_costs[shortcuts[i]] > sc_cost) {
-          all_costs[shortcuts[i]] = osr::kInfeasible;
-          continue;
-        }
-        if (all_costs[shortcuts[i] < sc_cost]) {
-          all_costs[shortcuts[idx]] = osr::kInfeasible;
-          break;
-        }
-      }
-    };
+    // auto const& find_shortest = [&](auto const shortcuts, std::size_t const idx,
+    //                                 osr::cost_t const sc_cost, 
+    //                                 osr::vec<osr::cost_t> all_costs) {
+    //   auto const& curr_struct = ways_.r_->shortcut_properties_[shortcuts[idx]];
+    //   for (auto i = idx + 1; i < shortcuts.size(); ++i) {
+    //     auto const& next_struct = ways_.r_->shortcut_properties_[shortcuts[i]];
+    //     // filter direct connections and sc via different nodes here:
+    //     if (!(curr_struct.upper_end_ == next_struct.upper_end_ &&
+    //           curr_struct.via_ == next_struct.via_)) {
+    //       continue;
+    //     }
+    //     // only change costs, if they are not equal:
+    //     if (all_costs[shortcuts[i]] > sc_cost) {
+    //       all_costs[shortcuts[i]] = osr::kInfeasible;
+    //       continue;
+    //     }
+    //     if (all_costs[shortcuts[i] < sc_cost]) {
+    //       all_costs[shortcuts[idx]] = osr::kInfeasible;
+    //       break;
+    //     }
+    //   }
+    // };
 
     // customize the given shortcuts here:
-    for (auto const& n : ways_.r_->node_shortcuts_up_) {
-      for (auto const [idx, sc] : utl::enumerate(n)) {
-        auto const& cost_up = ways_.r_->shortcut_costs_up_[sc];
-        auto const& cost_dwn = ways_.r_->shortcut_costs_down_[sc];
-        if (cost_up != osr::kInfeasible) {
-          find_shortest(n, idx, cost_up, ways_.r_->shortcut_costs_up_);
-        }
-        if(cost_dwn != osr::kInfeasible) {
-          find_shortest(n, idx, cost_dwn, ways_.r_->shortcut_costs_down_);
-        }
-      }
-    }
+    // for (auto const& n : ways_.r_->node_shortcuts_up_) {
+    //   for (auto const [idx, sc] : utl::enumerate(n)) {
+    //     auto const& cost_up = ways_.r_->shortcut_costs_up_[sc];
+    //     auto const& cost_dwn = ways_.r_->shortcut_costs_down_[sc];
+    //     if (cost_up != osr::kInfeasible) {
+    //       find_shortest(n, idx, cost_up, ways_.r_->shortcut_costs_up_);
+    //     }
+    //     if(cost_dwn != osr::kInfeasible) {
+    //       find_shortest(n, idx, cost_dwn, ways_.r_->shortcut_costs_down_);
+    //     }
+    //   }
+    // }
     return;
   }
 

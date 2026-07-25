@@ -87,6 +87,11 @@ path reconstruct_bidir(typename P::parameters const& params,
   auto forward_segments = std::vector<path::segment>{};
   auto forward_dist = 0.0;
 
+  // return path{.cost_ = b.mu_,
+  //               .dist_ = 0,
+  //               .elevation_ = elevation_storage::elevation{},
+  //               .segments_ = forward_segments};
+
   while (true) {
     auto const& entry = b.cost_f_.at(forward_n.get_key());
     auto const pred = entry.pred(forward_n);
@@ -659,19 +664,9 @@ std::optional<path> route_cch_bidir_dijkstra(typename P::parameters const& param
 
   b.reset(max, from, to);
 
-  // auto const limit_squared_max_matching_distance =
-  //   std::pow(geo::distance(from.pos_, to.pos_), 2) /
-  //   kMaxMatchingDistanceSquaredRatio;
-
   auto should_continue = true; // add the start nodes to the forward queue:
   for (auto const [i, start] : utl::enumerate(from_match)) {
-    if (!should_continue && component_seen(w, from_match, i)) { // check if start was already used
-      continue;
-    }
-    if (utl::none_of(to_match, [&](way_candidate const& end) { // check if start candidate also in to_match
-        return w.r_->way_component_[start.way_] ==
-               w.r_->way_component_[end.way_];      
-    })) {
+    if (!should_continue && component_seen(w, from_match, i)) {
       continue;
     }
 
@@ -681,45 +676,43 @@ std::optional<path> route_cch_bidir_dijkstra(typename P::parameters const& param
           b.add_start(w, {node, nc->cost_}); 
         });
       }
-
-      if (b.pq_f_.empty()) {
+    }
+    if (b.pq_f_.empty()) {
+      continue;
+    }
+    for (auto const [j, end] : utl::enumerate(to_match)) {
+      if (w.r_->way_component_[start.way_] != w.r_->way_component_[end.way_]) {
         continue;
       }
-      for (auto const [j, end] : utl::enumerate(to_match)) {
-        if (w.r_->way_component_[start.way_] != w.r_->way_component_[end.way_]) {
-          continue;
-        }
-        if (!should_continue && component_seen(w, to_match, j)) {
-          continue;
-        }
-
-        for (auto const* nc : {&end.left_, &end.right_}) { // add destination candidates for backward queue
-          if (nc->valid() && nc->cost_ < max) {
-            P::resolve_start_node(*w.r_, end.way_, nc->node_, to.lvl_, opposite(dir), [&](auto const node) {
-              b.add_end(w, {node, nc->cost_});
-            });
-          }
-        }
-        if (b.pq_b_.empty()) {
-         continue;
-        }
-
-        should_continue = 
-          b.run(params, w, *w.r_, max, blocked, sharing, elevations, dir) &&
-          should_continue;
-
-        // check if a mu was already found:
-        if (b.meet_point_.get_node() == node_idx_t::invalid()) {
-          if (should_continue) {
-            continue;
-          }
-          return std::nullopt;       
-        }
-
-        //reconstruct the path:
-        return reconstruct_bidir<P>(params, w, l, blocked, sharing, elevations, b, from,
-                              to, start, end, dir);
+      if (!should_continue && component_seen(w, to_match, j)) {
+        continue;
       }
+
+      for (auto const* nc : {&end.left_, &end.right_}) { // add destination candidates for backward queue
+        if (nc->valid() && nc->cost_ < max) {
+          P::resolve_start_node(*w.r_, end.way_, nc->node_, to.lvl_, opposite(dir), [&](auto const node) {
+            b.add_end(w, {node, nc->cost_});
+          });
+        }
+      }
+      if (b.pq_b_.empty()) {
+        continue;
+      }
+
+      should_continue = b.run(params, w, *w.r_, max, blocked, sharing, elevations, dir);
+
+      // check if a mu was already found:
+      if (b.meet_point_.get_node() == node_idx_t::invalid()) {
+        if (should_continue) {
+          continue;
+        } else {
+          return std::nullopt;
+        }      
+      }
+
+      //reconstruct the path:
+      return reconstruct_bidir<P>(params, w, l, blocked, sharing, elevations, b, from,
+                                  to, start, end, dir);
     }  
   }
   return std::nullopt;
@@ -1017,12 +1010,6 @@ std::optional<path> route(profile_parameters const& params,
       profile == search_profile::kCarParkingWheelchair ||
       profile == search_profile::kCarParking) {
     algo = routing_algorithm::kDijkstra;  // TODO
-  }
-  // Check if cch is used with invalid profiles
-  if (algo == routing_algorithm::kBidirDijkstra &&
-      profile != search_profile::kBus &&
-      profile != search_profile::kCar) {
-    algo = routing_algorithm::kDijkstra;
   }
   switch (algo) {
     case routing_algorithm::kDijkstra:

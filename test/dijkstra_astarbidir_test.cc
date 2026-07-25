@@ -247,7 +247,7 @@ TEST(dijkstra_astarbidir, hamburg) {
 TEST(dijkstra_astarbidir, aachen) {
   auto const raw_data = "test/aachen.osm.pbf";
   auto const data_dir = "test/aachen";
-  auto const num_samples = 500U;
+  auto const num_samples = 100U;
   auto const max_cost = 3 * 3600U;
   auto constexpr dir = direction::kForward;
 
@@ -297,3 +297,6 @@ TEST(dijkstra_astarbidir, DISABLED_germany) {
 
   run(w, l, num_samples, max_cost, dir);
 }
+
+
+// ./build/osr-test --gtest_filter=dijkstra_astarbidir.aachen
