@@ -46,6 +46,8 @@ struct mip_proc {
   bool is_in(osr::vec<osr::neighbor_idx_t>& neighbors, osr::node_idx_t const& node);
   bool is_shortcut(neighbor const&);
   bool is_neighbor(neighborhood const& nhood, osr::node_idx_t const& n);
+  bool accessible_way(osr::way_idx_t const& w, osr::direction const& d);
+  bool accessible_node(osr::node_idx_t const& n);
 
   void build_contraction_order();
   void init_neighborhoods();

@@ -14,7 +14,8 @@ void cch::neighborhood::sort_neighbors(osr::vec<neighbor>& nvec) {
   if (neighbors_.size() < 2) {return;}
 
   //sort by increasing rank
-  //source: https://stackoverflow.com/questions/23816797/how-does-stdsort-work-for-list-of-pairs#23817006 11.06.2026
+  //source for sorting condition: 
+  // https://stackoverflow.com/questions/23816797/how-does-stdsort-work-for-list-of-pairs#23817006 (11.06.2026)
   auto sorting_condition = [&nvec](auto const& lhs, auto const& rhs) {
     return nvec[lhs].rank_ < nvec[rhs].rank_;
   };
@@ -69,6 +70,16 @@ bool cch::mip_proc::check_importance(osr::node_idx_t const& lhs,
   return ways_.r_->node_importance_[lhs] < ways_.r_->node_importance_[rhs];
 }
 
+bool cch::mip_proc::accessible_way(osr::way_idx_t const& w, osr::direction const& d) {
+  auto const& wp = ways_.r_->way_properties_[w];
+  return wp.is_car_accessible() && (d == osr::direction::kForward || !wp.is_oneway_car());
+}
+
+bool cch::mip_proc::accessible_node(osr::node_idx_t const& n) {
+  auto const& np = ways_.r_->node_properties_[n];
+  return np.is_car_accessible();
+}
+
 void cch::mip_proc::init_neighborhoods() {
   if (contr_order_.empty()) { 
     return;
@@ -77,11 +88,14 @@ void cch::mip_proc::init_neighborhoods() {
   //init the neighborhoods from the initial osr graph
   for (auto const [rank, node] : utl::enumerate(contr_order_)) {
     neighborhoods_.push_back(neighborhood{node, static_cast<std::uint32_t>(rank)});
+    if (!accessible_node(node)) {
+      continue;
+    }
 
     utl::verify(neighborhoods_[rank].node_ == node && neighborhoods_[rank].rank_ == rank,
                 "neighborhood initialized incorrectly.\nExpected node: {} instead: {}\nExpected rank: {} instead {}",
                 node, neighborhoods_[rank].node_, rank, neighborhoods_[rank].rank_);
-    
+
     // check for existing neighbors
     auto const& in_ways = ways_.r_->node_ways_[node];
     auto const& idx_in_ways = ways_.r_->node_in_way_idx_[node];
@@ -91,7 +105,7 @@ void cch::mip_proc::init_neighborhoods() {
 
     // add existing neighbors with higher rank
     for (auto const [idx, way] : utl::zip(idx_in_ways, in_ways)) {
-      if (idx > 0) {
+      if (idx > 0 && accessible_way(way, osr::direction::kBackward)) {
         auto const& pred = ways_.r_->way_nodes_[way][idx - 1];
         if (check_importance(node, pred)){ // <= füge nun alle möglichkeiten von pred hinzu nicht nur die erste
             //!is_in(neighborhoods_[rank].neighbors_, pred)) {
@@ -107,7 +121,7 @@ void cch::mip_proc::init_neighborhoods() {
             .dir_ = osr::direction::kBackward});
         }
       }
-      if (idx < ways_.r_->way_nodes_.size() - 1) {
+      if (idx < (ways_.r_->way_nodes_.size() - 1) && accessible_way(way, osr::direction::kForward)) {
         auto const& succ = ways_.r_->way_nodes_[way][idx + 1];
         if (check_importance(node, succ)){
             //!is_in(neighborhoods_[rank].neighbors_, succ)) {
@@ -131,13 +145,12 @@ void cch::mip_proc::concatenate_neighbors(neighborhood const& pred, neighborhood
   if (pred.neighbors_.empty()) {
     return;
   }
-  //utl::verify(node_ == std::get<0>(pred.neighbors_[0]), "not lowest higher ranked neighbor {}", std::get<0>(pred.neighbors_[0]));
   utl::verify(succ.node_ == all_neighbors_[pred.neighbors_[0]].neighbor_, 
               "node {} is not lowest higher ranked neighbor of {}, expected {} at neighborid {}", 
               all_neighbors_[pred.neighbors_[0]].neighbor_,
               pred.node_, succ.node_, pred.neighbors_[0]);
   for (auto const n : pred.neighbors_) {
-    auto const n_struct = all_neighbors_[n];
+    auto const& n_struct = all_neighbors_[n];
     if (n_struct.rank_ <= succ.rank_){ // <= nehme is_neighbor raus, um später optimalen shortcut zu finden
     //if (n_struct.rank_ <= succ.rank_ || is_neighbor(succ, n_struct.neighbor_)) { 
       continue;
@@ -165,7 +178,7 @@ void cch::mip_proc::contract_nodes() {
     }
     n.sort_neighbors(all_neighbors_);
     if (max_neighbors_ < n.neighbors_.size()) {max_neighbors_ = n.neighbors_.size();}
-    auto const succ_rank = all_neighbors_[n.neighbors_[0]].rank_;
+    auto const& succ_rank = all_neighbors_[n.neighbors_[0]].rank_;
     auto& next = neighborhoods_[succ_rank];
     concatenate_neighbors(n, next);
     //elimination_tree_.push_back(static_cast<std::uint32_t>(next.rank_));
