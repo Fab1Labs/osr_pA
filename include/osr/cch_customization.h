@@ -35,18 +35,16 @@ struct basic_customization {
 
   void get_turn_data(osr::neighbor_idx_t const& nidx) {
     // calculate the first and last way idx of the shortcut
-    auto const& via = prep_.all_neighbors_[nidx].via_;
+    auto const& n_struct = prep_.all_neighbors_[nidx];
     auto const& to_via_idx = prep_.all_neighbors_[nidx].to_via_id_;
     auto const& to_neighbor_idx = prep_.all_neighbors_[nidx].to_neighbor_id_;
-    if (via == osr::node_idx_t{0U} && 
+    if (n_struct.via_ == osr::node_idx_t{0U} && 
         to_via_idx == 0 &&
         to_neighbor_idx == 0) {
-      auto const& way = prep_.all_neighbors_[nidx].edge_;
-      auto const& dir = prep_.all_neighbors_[nidx].dir_;
-      way_in_neighbor_[nidx] = way;
-      dir_in_neighbor_[nidx] = dir;
-      way_out_neighbor_[nidx] = way;
-      dir_out_neighbor_[nidx] = dir;
+      way_in_neighbor_[nidx] = n_struct.edge_;
+      dir_in_neighbor_[nidx] = n_struct.dir_;
+      way_out_neighbor_[nidx] = n_struct.edge_;
+      dir_out_neighbor_[nidx] = n_struct.dir_;
 
     } else {
       utl::verify(to_via_idx <= nidx || to_neighbor_idx <= nidx,
@@ -61,12 +59,12 @@ struct basic_customization {
 
   template<osr::Profile P>
   void get_neighbor_cost(typename P::parameters const& params,  
-      cch::neighborhood const& curr, osr::neighbor_idx_t nidx, neighbor const& next) {
+      cch::neighborhood const& curr, osr::neighbor_idx_t const& nidx, neighbor const& next) {
     utl::verify(curr.rank_ <= next.rank_, "illegal neighborhood with {} > {}", curr.rank_, next.rank_);
 
     // handle direct neighbors
     if (next.to_via_id_ == 0 && next.to_neighbor_id_ == 0) {
-      auto const wp = ways_.r_->way_properties_[next.edge_];
+      auto const& wp = ways_.r_->way_properties_[next.edge_];
       auto const dist = ways_.r_->get_way_node_distance(next.edge_, next.in_way_idx_);
 
       // calculate upward costs:
@@ -77,7 +75,7 @@ struct basic_customization {
       if (upper_nc == osr::kInfeasible || wc_up == osr::kInfeasible) {
         neighbor_costs_up_[nidx] = osr::kInfeasible;
       } else {
-        neighbor_costs_up_[nidx] = osr::clamp_cost(static_cast<std::uint64_t>(wc_up)) + upper_nc;
+        neighbor_costs_up_[nidx] = osr::clamp_cost(static_cast<std::uint64_t>(wc_up + upper_nc));
       }
       // calculate downward costs:
       auto const lower_nc = P::node_cost(params, ways_.r_->node_properties_[curr.node_]);
@@ -86,9 +84,9 @@ struct basic_customization {
       if (lower_nc == osr::kInfeasible || wc_down == osr::kInfeasible) {
         neighbor_costs_down_[nidx] = osr::kInfeasible;
       } else {
-        neighbor_costs_down_[nidx] = osr::clamp_cost(static_cast<std::uint64_t>(wc_down)) + lower_nc;
+        neighbor_costs_down_[nidx] = osr::clamp_cost(static_cast<std::uint64_t>(wc_down + lower_nc));
       }
-    } else { // handle concatenated neighbor (shortcut)
+    } else { // handle concatenated neighbors (shortcut)
       // calculate upward costs: 
       auto const& to_via_c_up = neighbor_costs_down_[next.to_via_id_];
       auto const& to_neighbor_c_up = neighbor_costs_up_[next.to_neighbor_id_];
@@ -102,7 +100,7 @@ struct basic_customization {
       if (to_via_c_up == osr::kInfeasible || to_neighbor_c_up == osr::kInfeasible) {
         neighbor_costs_up_[nidx] = osr::kInfeasible;
       } else {
-        auto const turn_angle_up = ways_.r_->get_turn_angle(
+        auto const turn_angle_up = ways_.r_->get_turn_angle( // HIER BITTE NOCHMAL GENAU WEGEN DEN RICHTUNGEN SCHAUEN
             next.via_,
             ways_.r_->get_way_pos(next.via_, from_lower_to_via),
             dir_in_neighbor_[next.to_via_id_],
@@ -148,7 +146,7 @@ struct basic_customization {
 
     // calculate all costs for each shortcut 
     for (auto const& node : prep_.neighborhoods_) {
-      for (auto const neighbor : node.neighbors_) {
+      for (auto const& neighbor : node.neighbors_) {
         get_turn_data(neighbor);
         get_neighbor_cost<P>(params, node, neighbor, prep_.all_neighbors_[neighbor]);
       }
@@ -158,8 +156,8 @@ struct basic_customization {
     shortcut_translation_.resize(prep_.all_neighbors_.size());
     ways_.r_->node_shortcuts_up_.resize(ways_.node_to_osm_.size());
     ways_.r_->node_shortcuts_down_.resize(ways_.node_to_osm_.size());
-    for (auto node : prep_.neighborhoods_) {
-      for (auto& neighbor : node.neighbors_) {
+    for (auto const& node : prep_.neighborhoods_) {
+      for (auto const& neighbor : node.neighbors_) {
         // skip unreachable shortcuts in both ways:
         if (neighbor_costs_up_[neighbor] == osr::kInfeasible &&
             neighbor_costs_down_[neighbor] == osr::kInfeasible) {

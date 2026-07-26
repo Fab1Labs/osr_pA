@@ -25,6 +25,8 @@ struct neighbor {
   osr::way_idx_t edge_;
   std::uint16_t in_way_idx_;
   osr::direction dir_;
+  bool go_fwd_; // <- store if we can go this path forward
+  bool go_bckwd_; // <- store if we can go this path back
 };
 
 struct neighborhood {
@@ -63,6 +65,8 @@ struct mip_proc {
   osr::vec<osr::node_idx_t> contr_order_;
   osr::vec<neighborhood> neighborhoods_; // <- sorted by rank
   osr::vec<neighbor> all_neighbors_; // <- identifiable by idx
+  osr::vec<bool> is_accessible_up_;
+  osr::vec<bool> is_accessible_down_;
   osr::vec<std::uint16_t> in_way_idx_;
   osr::vec<std::uint16_t> out_way_idx_;
   osr::vec<std::uint32_t> elimination_tree_;

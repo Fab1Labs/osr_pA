@@ -17,6 +17,11 @@ struct shortcut_properties {
 };
 
 struct shortcut_nav_infos {
+
+  void change_direction() {
+    dir_ = osr::opposite(dir_);
+  }
+
   osr::way_idx_t way_;
   osr::direction dir_;
 };

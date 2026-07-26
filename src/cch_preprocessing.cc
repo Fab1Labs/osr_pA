@@ -70,6 +70,7 @@ bool cch::mip_proc::check_importance(osr::node_idx_t const& lhs,
   return ways_.r_->node_importance_[lhs] < ways_.r_->node_importance_[rhs];
 }
 
+// customize access functions to allow shortcuts for more profiles:
 bool cch::mip_proc::accessible_way(osr::way_idx_t const& w, osr::direction const& d) {
   auto const& wp = ways_.r_->way_properties_[w];
   return wp.is_car_accessible() && (d == osr::direction::kForward || !wp.is_oneway_car());
@@ -107,7 +108,7 @@ void cch::mip_proc::init_neighborhoods() {
     for (auto const [idx, way] : utl::zip(idx_in_ways, in_ways)) {
       if (idx > 0 && accessible_way(way, osr::direction::kBackward)) {
         auto const& pred = ways_.r_->way_nodes_[way][idx - 1];
-        if (check_importance(node, pred)){ // <= füge nun alle möglichkeiten von pred hinzu nicht nur die erste
+        if (check_importance(node, pred) && accessible_node(pred)){ // <= füge nun alle möglichkeiten von pred hinzu nicht nur die erste
             //!is_in(neighborhoods_[rank].neighbors_, pred)) {
           neighborhoods_[rank].neighbors_.push_back(all_neighbors_.size());
           all_neighbors_.push_back(neighbor{
@@ -118,12 +119,14 @@ void cch::mip_proc::init_neighborhoods() {
             .to_neighbor_id_ = 0,
             .edge_ = way,
             .in_way_idx_ = static_cast<std::uint16_t>(idx - 1),
-            .dir_ = osr::direction::kBackward});
+            .dir_ = osr::direction::kBackward,
+            .go_fwd_ = true,
+            .go_bckwd_ = accessible_way(way, osr::direction::kForward)});
         }
       }
       if (idx < (ways_.r_->way_nodes_.size() - 1) && accessible_way(way, osr::direction::kForward)) {
         auto const& succ = ways_.r_->way_nodes_[way][idx + 1];
-        if (check_importance(node, succ)){
+        if (check_importance(node, succ) && accessible_node(succ)){
             //!is_in(neighborhoods_[rank].neighbors_, succ)) {
           neighborhoods_[rank].neighbors_.push_back(all_neighbors_.size());
           all_neighbors_.push_back(neighbor{
@@ -134,7 +137,9 @@ void cch::mip_proc::init_neighborhoods() {
             .to_neighbor_id_ = 0,
             .edge_ = way,
             .in_way_idx_ = static_cast<std::uint16_t>(idx),
-            .dir_ = osr::direction::kForward});
+            .dir_ = osr::direction::kForward,
+            .go_fwd_ = true,
+            .go_bckwd_ = accessible_way(way, osr::direction::kBackward)});
         }
       }
     }
@@ -145,17 +150,22 @@ void cch::mip_proc::concatenate_neighbors(neighborhood const& pred, neighborhood
   if (pred.neighbors_.empty()) {
     return;
   }
+
+  auto const& to_pred_struct = all_neighbors_[pred.neighbors_[0]];
   utl::verify(succ.node_ == all_neighbors_[pred.neighbors_[0]].neighbor_, 
               "node {} is not lowest higher ranked neighbor of {}, expected {} at neighborid {}", 
               all_neighbors_[pred.neighbors_[0]].neighbor_,
               pred.node_, succ.node_, pred.neighbors_[0]);
   for (auto const n : pred.neighbors_) {
     auto const& n_struct = all_neighbors_[n];
-    if (n_struct.rank_ <= succ.rank_){ // <= nehme is_neighbor raus, um später optimalen shortcut zu finden
-    //if (n_struct.rank_ <= succ.rank_ || is_neighbor(succ, n_struct.neighbor_)) { 
+    if (n_struct.rank_ <= succ.rank_){
       continue;
     }
-
+    auto const go_fwd = to_pred_struct.go_bckwd_ && n_struct.go_fwd_;
+    auto const go_bckwd = to_pred_struct.go_fwd_ && n_struct.go_bckwd_;
+    if (!go_fwd && !go_bckwd) {
+      continue;
+    }
     succ.neighbors_.push_back(all_neighbors_.size());
     all_neighbors_.push_back(neighbor{
       .neighbor_ = n_struct.neighbor_,
@@ -165,7 +175,9 @@ void cch::mip_proc::concatenate_neighbors(neighborhood const& pred, neighborhood
       .to_neighbor_id_ = n,
       .edge_ = osr::way_idx_t{0U},
       .in_way_idx_ = 0,
-      .dir_ = osr::direction::kForward});
+      .dir_ = osr::direction::kForward,
+      .go_fwd_ = go_fwd, 
+      .go_bckwd_ = go_bckwd});
   }
 }
 
@@ -177,7 +189,9 @@ void cch::mip_proc::contract_nodes() {
       continue;
     }
     n.sort_neighbors(all_neighbors_);
-    if (max_neighbors_ < n.neighbors_.size()) {max_neighbors_ = n.neighbors_.size();}
+    if (max_neighbors_ < n.neighbors_.size()) {
+      max_neighbors_ = n.neighbors_.size();
+    }
     auto const& succ_rank = all_neighbors_[n.neighbors_[0]].rank_;
     auto& next = neighborhoods_[succ_rank];
     concatenate_neighbors(n, next);
