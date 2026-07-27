@@ -21,9 +21,16 @@ bool test_neighbors(osr::vec<cch::neighbor> const& neighbors,
                     osr::node_idx_t const& node,
                     std::uint32_t const& rank,
                     osr::way_idx_t const& way) {
-  return neighbors[probe].neighbor_ == node &&
-         neighbors[probe].rank_ == rank &&
-         neighbors[probe].edge_ == way;
+  auto const result =  neighbors[probe].neighbor_ == node &&
+                       neighbors[probe].rank_ == rank &&
+                       neighbors[probe].edge_ == way;
+  if (!result) {
+    std::cout << "Exptected neighbor: " << neighbors[probe].neighbor_ << " but got: " << node << "\n";
+    std::cout << "Exptected rank: " << neighbors[probe].rank_ << " but got: " << rank << "\n";
+    std::cout << "Exptected way: " << neighbors[probe].edge_ << " but got: " << way << "\n";
+  }
+
+  return result;
 }
 
 TEST(extract, string_cache) {
@@ -102,12 +109,13 @@ TEST(extract, init_neighborhoods) {
 
   // Test neighborhood with one higher neighbor: Aachen - Dennewartstrasse
   ASSERT_EQ(mip.neighborhoods_[1685].node_, osr::node_idx_t{17169});
-  ASSERT_EQ(mip.neighborhoods_[1685].neighbors_.size(), 1);
-  ASSERT_TRUE(test_neighbors(mip.all_neighbors_,
-                             mip.neighborhoods_[1685].neighbors_[0], 
-                             osr::node_idx_t{17170}, 
-                             static_cast<std::uint32_t>(1686), 
-                             osr::way_idx_t{13036}));
+  ASSERT_EQ(mip.neighborhoods_[1685].neighbors_.size(), 0); // <- falls mit accessible check getestet wird
+  // ASSERT_EQ(mip.neighborhoods_[1685].neighbors_.size(), 1); // <- falls ohne accessible check getestet wird
+  // ASSERT_TRUE(test_neighbors(mip.all_neighbors_,
+  //                            mip.neighborhoods_[1685].neighbors_[0], 
+  //                            osr::node_idx_t{17170}, 
+  //                            static_cast<std::uint32_t>(1686), 
+  //                            osr::way_idx_t{13036}));
   //ASSERT_EQ(mip.all_neighbors_[1685].neighbors_[0], std::tuple(osr::node_idx_t{17170}, static_cast<std::uint32_t>(1686), false, osr::node_idx_t{17170}, osr::way_idx_t{13036}, osr::way_idx_t{13036}));
 
   // Test neighborhood with multiple neighbors: Aachen - Gabelung Büchel
@@ -115,6 +123,8 @@ TEST(extract, init_neighborhoods) {
   ASSERT_EQ(mip.neighborhoods_[14245].node_, osr::node_idx_t{2761});
   ASSERT_EQ(mip.neighborhoods_[14251].node_, osr::node_idx_t{201});
   ASSERT_EQ(mip.neighborhoods_[14283].node_, osr::node_idx_t{200});
+  ASSERT_EQ(mip.neighborhoods_[14241].neighbors_.size(), 3);
+  
   ASSERT_TRUE(test_neighbors(mip.all_neighbors_,
                              mip.neighborhoods_[14241].neighbors_[0], 
                              osr::node_idx_t{201}, 
@@ -362,3 +372,81 @@ TEST(extract, customization) {
 //   ASSERT_EQ(mip.elimination_tree_[0], static_cast<std::uint32_t>(9663));
 //   ASSERT_EQ(mip.elimination_tree_[1], static_cast<std::uint32_t>(2));
 // }
+
+TEST(extract, contraction_order_new) {
+  auto p = fs::temp_directory_path() / "osr_test";
+  auto ec = std::error_code{};
+  fs::remove_all(p, ec);
+  fs::create_directories(p, ec);
+
+  extract(false, "test/aachen.osm.pbf", p, {});
+
+  auto w = ways{p, cista::mmap::protection::READ};
+  auto con = cch::contraction{w.r_};
+  con.build_contraction_order();
+
+  bool eq = true;
+  for (auto const [rank, node] : utl::enumerate(con.contraction_order_)) {
+    eq = eq && (static_cast<std::uint32_t>(rank) == con.r_->node_importance_[node]);
+  }
+  
+  ASSERT_TRUE(eq);
+  ASSERT_EQ(con.contraction_order_.size(), 20063);
+}
+
+TEST(extract, contraction_neighbor_init) {
+  auto p = fs::temp_directory_path() / "osr_test";
+  auto ec = std::error_code{};
+  fs::remove_all(p, ec);
+  fs::create_directories(p, ec);
+
+  extract(false, "test/aachen.osm.pbf", p, {});
+
+  auto w = ways{p, cista::mmap::protection::READ};
+  auto con = cch::contraction{w.r_};
+  con.build_contraction_order();
+  con.init_neighborhoods();
+  
+  // Test empty neighborhood
+  ASSERT_EQ(con.neighborhoods_[19851].size(), 0);
+  
+  // neighborhood with one higher neighbor: Aachen - Dennewartstrasse
+  ASSERT_EQ(con.contraction_order_[1685], osr::node_idx_t{17169});
+  ASSERT_EQ(con.contraction_order_[1686], osr::node_idx_t{17170});
+  ASSERT_EQ(con.neighborhoods_[1685].size(), 1);
+  ASSERT_EQ(con.neighborhoods_[1685][0], osr::node_idx_t{17170});
+
+  // bigger neighborhood Aachen - Gabelung Büchel
+  ASSERT_EQ(con.contraction_order_[14241], osr::node_idx_t{14653});
+  ASSERT_EQ(con.contraction_order_[14245], osr::node_idx_t{2761});
+  ASSERT_EQ(con.contraction_order_[14251], osr::node_idx_t{201});
+  ASSERT_EQ(con.contraction_order_[14283], osr::node_idx_t{200});
+  ASSERT_EQ(con.neighborhoods_[14241].size(), 3);
+  ASSERT_EQ(con.neighborhoods_[14241][0], osr::node_idx_t{201});
+  ASSERT_EQ(con.neighborhoods_[14241][1], osr::node_idx_t{2761});
+  ASSERT_EQ(con.neighborhoods_[14241][2], osr::node_idx_t{200});
+}
+
+TEST(extract, contraction_filter_and_sort) {
+  auto p = fs::temp_directory_path() / "osr_test";
+  auto ec = std::error_code{};
+  fs::remove_all(p, ec);
+  fs::create_directories(p, ec);
+
+  extract(false, "test/aachen.osm.pbf", p, {});
+
+  auto w = ways{p, cista::mmap::protection::READ};
+  auto con = cch::contraction{w.r_};
+  con.build_contraction_order();
+  con.init_neighborhoods();
+  con.neighborhoods_[14241].push_back(osr::node_idx_t{201});
+  con.neighborhoods_[14241].push_back(osr::node_idx_t{201});
+  con.neighborhoods_[14241].push_back(osr::node_idx_t{200});
+  con.sort_and_filter_neighbors(14241);
+
+  auto const& probe = con.neighborhoods_[14241]; 
+  ASSERT_EQ(probe[0], osr::node_idx_t{2761});
+  ASSERT_EQ(probe[1], osr::node_idx_t{201});
+  ASSERT_EQ(probe[2], osr::node_idx_t{200});
+  ASSERT_EQ(probe.size(), 3);
+}

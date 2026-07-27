@@ -707,23 +707,30 @@ void extract(bool const with_platforms,
 
   //std::cout << "Nodes: " << w.r_->node_properties_.size();
   pt->status("CCH Preprocessing").in_high(w.n_ways()).out_bounds(96, 97);
-  auto mip_proc = cch::mip_proc{w};
-  mip_proc.build_contraction_order();
-  mip_proc.init_neighborhoods();
-  mip_proc.contract_nodes();
-  //mip_proc.write_shortcuts(cista::mmap::protection::WRITE);
+  pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
+  auto contraction = cch::contraction{w.r_};
+  contraction.build_contraction_order();
+  contraction.init_neighborhoods();
+  contraction.contract_nodes();
+  // auto mip_proc = cch::mip_proc{w};
+  // mip_proc.build_contraction_order();
+  // mip_proc.init_neighborhoods();
+  // mip_proc.contract_nodes();
 
   pt->status("CCH Customization").in_high(w.n_ways()).out_bounds(97, 99);
   auto profile = search_profile::kCar;
   auto params = get_parameters(profile);
-  auto customization = cch::basic_customization{w, mip_proc};
-  customization.run(profile, params);
+  auto customization = cch::customization{contraction.contraction_order_, contraction.neighborhoods_, w.r_};
+  customization.basic_customization(profile, params);
+  // auto customization = cch::basic_customization{w, mip_proc};
+  // customization.run(profile, params);
   w.r_->write(out);
 
-  pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
+  
   lookup{w, out, cista::mmap::protection::WRITE}.build_rtree();
-  //std::cout << "Original length: " << mip_proc.all_neighbors_.size() << "\nNew length: " << w.r_->shortcut_properties_.size() << "\nAmount of ways: " << w.r_->way_properties_.size();
-    
+  // std::cout << "Amount of all shortcuts: " << mip_proc.all_neighbors_.size() << "\n";
+  // std::cout << "Car accessible shortcuts + ways: " << w.r_->shortcut_properties_.size() << "\n";
+  // std::cout << "Amount of ways in graph: " << w.r_->way_properties_.size() << "\n";  
 }
 
 }  // namespace osr

@@ -109,7 +109,7 @@ void cch::mip_proc::init_neighborhoods() {
       if (idx > 0 && accessible_way(way, osr::direction::kBackward)) {
         auto const& pred = ways_.r_->way_nodes_[way][idx - 1];
         if (check_importance(node, pred) && accessible_node(pred)){ // <= füge nun alle möglichkeiten von pred hinzu nicht nur die erste
-            //!is_in(neighborhoods_[rank].neighbors_, pred)) {
+            // !is_in(neighborhoods_[rank].neighbors_, pred)) {
           neighborhoods_[rank].neighbors_.push_back(all_neighbors_.size());
           all_neighbors_.push_back(neighbor{
             .neighbor_ = pred,
@@ -127,7 +127,7 @@ void cch::mip_proc::init_neighborhoods() {
       if (idx < (ways_.r_->way_nodes_.size() - 1) && accessible_way(way, osr::direction::kForward)) {
         auto const& succ = ways_.r_->way_nodes_[way][idx + 1];
         if (check_importance(node, succ) && accessible_node(succ)){
-            //!is_in(neighborhoods_[rank].neighbors_, succ)) {
+            // !is_in(neighborhoods_[rank].neighbors_, succ)) {
           neighborhoods_[rank].neighbors_.push_back(all_neighbors_.size());
           all_neighbors_.push_back(neighbor{
             .neighbor_ = succ,
@@ -207,3 +207,68 @@ bool cch::mip_proc::is_shortcut(neighbor const& n) {
 }
 
 // ./build/osr-extract -i ./test/aachen.osm.pbf -o ./test/aachen
+
+cch::contraction::contraction(cista::wrapped<osr::ways::routing>& r)
+  : r_{r} {}
+
+// calculate the neighborhood of all nodes in the graph
+void cch::contraction::init_neighborhoods() {
+  if (contraction_order_.empty()) {
+    return;
+  }
+  std::size_t edge_counter = 0;
+  neighborhoods_.resize(contraction_order_.size());
+  for (auto const [rank, node] : utl::enumerate(contraction_order_)) {
+    utl::verify(rank == r_->node_importance_[node], 
+                "Expected Node {} with rank {} but node came at rank {}",
+                node, r_->node_importance_[node], rank);
+    auto const& in_ways = r_->node_ways_[node];
+    auto const& idx_in_ways = r_->node_in_way_idx_[node];
+    if (in_ways.empty() && idx_in_ways.empty()) {
+      continue;
+    }
+
+    for (auto const [idx, way] : utl::zip(idx_in_ways, in_ways)) {
+      // add neighbors in forward direction with higher rank
+      if (idx > 0) {
+        auto const& pred = r_->way_nodes_[way][idx - 1];
+        if (rank < r_->node_importance_[pred]) {
+          neighborhoods_[rank].push_back(pred);
+          ++edge_counter;
+        }
+      }
+      // add neighbors in backward direction with higher rank
+      if (idx < (r_->way_nodes_.size() - 1)) {
+        auto const& succ = r_->way_nodes_[way][idx + 1];
+        if (rank < r_->node_importance_[succ]) {
+          neighborhoods_[rank].push_back(succ);
+          ++edge_counter;
+        }
+      }
+    }
+  }
+  std::cout << "Total ways: " << r_->way_properties_.size() << ", Neighbors: " << edge_counter << "\n";
+}
+
+// contract the nodes sorted by rank
+void cch::contraction::contract_nodes() {
+  if (neighborhoods_.empty()) {
+    return;
+  }
+
+  for (auto [rank, neighbors] : utl::enumerate(neighborhoods_)) {
+    if (neighbors.size() == 0) { continue; }
+    sort_and_filter_neighbors(rank);
+    auto const& next_rank = r_->node_importance_[neighbors[0]];
+    for (auto const& n : neighbors) {
+      neighborhoods_[next_rank].push_back(n);
+    }
+  }
+
+  std::size_t counter = 0;
+  for (auto n : neighborhoods_) {
+    counter += n.size();
+  }
+
+  std::cout << "Neighbors in G+: " << counter;
+}

@@ -73,4 +73,44 @@ struct mip_proc {
   std::uint64_t max_neighbors_;
 };
 
+
+struct contraction {
+  explicit contraction(cista::wrapped<osr::ways::routing>&);
+
+  // helper functions:
+  void build_contraction_order() {
+    std::cout << "Size Node Importance: " << r_->node_importance_.size() << "\n";
+    contraction_order_.resize(r_->node_importance_.size());
+    for (auto const [i, rank] : utl::enumerate(r_->node_importance_)) {
+      contraction_order_[rank] = osr::node_idx_t{i};
+    }
+  }
+
+  // sort the neighbors of a node by rank
+  void sort_and_filter_neighbors(std::uint32_t const& rank) {
+    if (neighborhoods_[rank].size() < 2) { return; }
+    auto sorting_condition = [this](osr::node_idx_t const lhs, osr::node_idx_t const rhs) {
+      return r_->node_importance_[lhs] < r_->node_importance_[rhs];
+    };
+    // sort the given neighbors
+    std::sort(neighborhoods_[rank].begin(), neighborhoods_[rank].end(), sorting_condition);
+    // filter duplicates
+    auto last_s = std::unique(neighborhoods_[rank].begin(), neighborhoods_[rank].end());
+    neighborhoods_[rank].erase(last_s, neighborhoods_[rank].end());
+
+    for (std::size_t i = 0; i < (neighborhoods_[rank].size() - 1); ++i) {
+      utl::verify(r_->node_importance_[neighborhoods_[rank][i]] < r_->node_importance_[neighborhoods_[rank][i + 1]],
+                  "Neighbors are sorted incorrectly");
+    }
+  }
+
+  // main functions:
+  void init_neighborhoods();
+  void contract_nodes();
+
+  osr::vec<osr::vec<osr::node_idx_t>> neighborhoods_;
+  osr::vec<osr::node_idx_t> contraction_order_;
+  cista::wrapped<osr::ways::routing>& r_;
+};
+
 } //namespace cch
