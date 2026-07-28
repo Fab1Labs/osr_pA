@@ -707,7 +707,6 @@ void extract(bool const with_platforms,
 
   //std::cout << "Nodes: " << w.r_->node_properties_.size();
   pt->status("CCH Preprocessing").in_high(w.n_ways()).out_bounds(96, 97);
-  pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
   auto contraction = cch::contraction{w.r_};
   contraction.build_contraction_order();
   contraction.init_neighborhoods();
@@ -721,12 +720,12 @@ void extract(bool const with_platforms,
   auto profile = search_profile::kCar;
   auto params = get_parameters(profile);
   auto customization = cch::customization{contraction.contraction_order_, contraction.neighborhoods_, w.r_};
-  customization.basic_customization(profile, params);
+  customization.calculate_direct_costs(profile, params);
   // auto customization = cch::basic_customization{w, mip_proc};
   // customization.run(profile, params);
   w.r_->write(out);
 
-  
+  pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
   lookup{w, out, cista::mmap::protection::WRITE}.build_rtree();
   // std::cout << "Amount of all shortcuts: " << mip_proc.all_neighbors_.size() << "\n";
   // std::cout << "Car accessible shortcuts + ways: " << w.r_->shortcut_properties_.size() << "\n";

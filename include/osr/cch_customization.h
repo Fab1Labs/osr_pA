@@ -1,6 +1,6 @@
 #pragma once
 
-#include "iostream"
+#include  <iostream>
 
 #include "utl/verify.h"
 #include "utl/enumerate.h"
@@ -253,5 +253,119 @@ struct basic_customization {
   osr::vec<osr::direction> dir_out_neighbor_;
 };
 
+struct customization {
 
+  struct way_data {
+    osr::way_idx_t way_;
+    osr::direction dir_;
+    std::uint16_t way_pos_;
+  };
+
+  customization(
+      osr::vec<osr::node_idx_t> const& co, 
+      osr::vec<osr::vec<osr::node_idx_t>> const& nh,
+      cista::wrapped<osr::ways::routing>& r)
+  : contraction_order_{co},
+    neighborhoods_{nh},
+    r_{r} {}
+
+  void calculate_direct_costs(osr::search_profile const& profile,
+                              osr::profile_parameters const& params) {
+    return with_valid_cch_profile(profile, [&]<osr::Profile P>(P&&) {
+      auto const& pp = std::get<typename P::parameters>(params);
+      return calculate_direct_costs<P>(pp);
+    });
+  }
+
+  void basic_customization(osr::search_profile const& profile, 
+                           osr::profile_parameters const& params) {
+    return with_valid_cch_profile(profile, [&]<osr::Profile P>(P&&) {
+      auto const& pp = std::get<typename P::parameters>(params);
+      return basic_customization<P>(pp);
+    });
+  }
+
+  // helper function to find way, dir and pos of two neighbors
+  way_data find_way(osr::node_idx_t const& from, osr::node_idx_t const& to) {
+    auto const& in_ways = r_->node_ways_[from];
+    auto const& in_way_idx = r_->node_in_way_idx_[from];
+    utl::verify(in_ways.size() == in_way_idx.size(),
+      "Risk of Segmentation Fautl! In_ways.size() = {}, In_way_idx.size() = {}",
+      in_ways.size(), in_way_idx.size());
+    if (in_ways.empty() && in_way_idx.empty()) {
+      return way_data{
+        .way_ = osr::way_idx_t::invalid(), 
+        .dir_ = osr::direction::kForward, 
+        .way_pos_ = 0};
+    }
+
+    for (auto const [idx, way] : utl::zip(in_way_idx, in_ways)) {
+      if (idx > 0) {
+        if (r_->way_nodes_[way][idx - 1] == to) {
+          return way_data{
+            .way_ = way, 
+            .dir_ = osr::direction::kBackward, 
+            .way_pos_ = static_cast<std::uint16_t>(idx - 1)};
+        }
+      }
+      if (idx < in_ways.size() - 1) {
+        if (r_->way_nodes_[way][idx + 1] == to) {
+          return way_data{
+            .way_ = way, 
+            .dir_ = osr::direction::kForward, 
+            .way_pos_ = static_cast<std::uint16_t>(idx)};
+        }
+      }
+    }
+    return way_data{
+      .way_ = osr::way_idx_t::invalid(), 
+      .dir_ = osr::direction::kForward, 
+      .way_pos_ = 0};
+  }
+
+  // calculate the existing edge costs here for customization preparation
+  template<osr::Profile P>
+  void calculate_direct_costs(typename P::parameters const& params) {
+    r_->sc_costs_up_.resize(contraction_order_.size());
+    r_->sc_costs_down_.resize(contraction_order_.size());
+    utl::verify(contraction_order_.size() == neighborhoods_.size(), 
+                "Risk of Segmentation Fault! Contraction order ({}) is not same size as neighborhood ({})",
+                contraction_order_.size(), neighborhoods_.size());
+    for (auto [rank, n] : utl::enumerate(neighborhoods_)) {
+      if (n.empty()) { continue; }
+      auto const& node = contraction_order_[rank];
+      auto const node_cost = P::node_cost(params, r_->node_properties_[node]);
+      r_->sc_costs_up_[rank].resize(n.size());
+      r_->sc_costs_down_[rank].resize(n.size());
+      utl::verify(n.size() == r_->sc_costs_up_[rank].size(),
+                  "Risk of Segmentation Fault! Neighborhood size: {}, sc up size: {}",
+                  n.size(), r_->sc_costs_up_[rank].size());
+
+      for (auto const [idx, neighbor] : utl::enumerate(n)) {
+        auto const wd = find_way(node, neighbor);
+        if (wd.way_ == osr::way_idx_t::invalid()) {
+          r_->sc_costs_up_[rank][idx] = osr::kInfeasible;
+          r_->sc_costs_down_[rank][idx] = osr::kInfeasible;
+        } else {
+          auto const& wp = r_->way_properties_[wd.way_];
+          auto const dist = r_->get_way_node_distance(wd.way_, wd.way_pos_);
+          r_->sc_costs_up_[rank][idx] = P::way_cost(params, wp, wd.dir_, dist) +
+                                        P::node_cost(params, r_->node_properties_[neighbor]);
+          r_->sc_costs_down_[rank][idx] = P::way_cost(params, wp, osr::opposite(wd.dir_), dist) +
+                                          node_cost;
+        }
+      }
+    }
+  }
+
+  template<osr::Profile P>
+  void basic_customization(typename P::parameters const& params) {
+    std::cout << params.uturn_penalty_;
+    return;
+  }
+  
+  osr::vec<osr::node_idx_t> const& contraction_order_;
+  osr::vec<osr::vec<osr::node_idx_t>> const& neighborhoods_; // <- sorted by importance
+  cista::wrapped<osr::ways::routing>& r_;
+};
 } // namespace cch
