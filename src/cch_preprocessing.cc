@@ -104,22 +104,6 @@ void cch::mip_proc::init_neighborhoods() {
     if (in_ways.empty() && idx_in_ways.empty()) {
       continue;
     }
-    if (rank == 63) {
-      std::cout << "ways for node rank 63: ";
-      for (auto const w : in_ways) {
-        std::cout << ways_.way_osm_idx_[w] << ", ";
-      }
-      std::cout << "\n";
-    }
-
-    if (rank == 63) {
-      std::cout << "Nneighborhood of node with rank 63 before init: ";
-      for (auto const n : neighborhoods_[rank].neighbors_) {
-        auto const& neighbor = all_neighbors_[n].neighbor_;
-        std::cout << to_idx(ways_.node_to_osm_[neighbor]) << ", ";
-      }
-      std::cout << "\n";
-    }
 
     // add existing neighbors with higher rank
     for (auto const [idx, way] : utl::zip(idx_in_ways, in_ways)) {
@@ -160,15 +144,6 @@ void cch::mip_proc::init_neighborhoods() {
             .go_dwn_ = !wp.is_oneway_car()});
         }
       }
-    }
-
-    if (rank == 63) {
-      std::cout << "Initial neighborhood of Node with rank 63: ";
-      for (auto const n : neighborhoods_[rank].neighbors_) {
-        auto const& neighbor = all_neighbors_[n].neighbor_;
-        std::cout << to_idx(ways_.node_to_osm_[neighbor]) << ", ";
-      }
-      std::cout << "\n";
     }
   }
 }
@@ -263,8 +238,8 @@ void cch::mip_proc::filter_neighborhoods() {
                 "Got false lowest higher neighbor of rank {} at next with rank {}", 
                 ways_.r_->node_importance_[ways_.r_->sc_targets_[rank][0]], rank);
     
-    if (rank == 63) {
-      std::cout << "After preprocessing neighborhood of Node with rank 63: ";
+    if (rank == 175) {
+      std::cout << "After preprocessing neighborhood of Node with rank 175: ";
       for (auto const n : ways_.r_->sc_targets_[rank]) {
         std::cout << to_idx(ways_.node_to_osm_[n]) << ", ";
       }
@@ -288,9 +263,17 @@ void cch::contraction::init_neighborhoods() {
     utl::verify(rank == r_->node_importance_[node], 
                 "Expected Node {} with rank {} but node came at rank {}",
                 node, r_->node_importance_[node], rank);
-    if (!accessible_node(node)) {
-      continue;
-    }
+    // if (!accessible_node(node)) {
+    //   continue;
+    // }
+
+    if (rank == 175) {
+      std::cout << "Initial neighborhood of Node with rank 63: ";
+      for (auto const n : r_->sc_targets_[rank]) {
+        std::cout << to_idx(n) << ", ";
+      }
+      std::cout << "\n";
+    } 
     auto const& in_ways = r_->node_ways_[node];
     auto const& idx_in_ways = r_->node_in_way_idx_[node];
     if (in_ways.empty() && idx_in_ways.empty()) {
@@ -299,22 +282,22 @@ void cch::contraction::init_neighborhoods() {
 
     for (auto const [idx, way] : utl::zip(idx_in_ways, in_ways)) {
       // add neighbors in forward direction with higher rank
-      auto const& wp = r_->way_properties_[way];
-      if (idx > 0 && wp.is_car_accessible()) {
+      //auto const& wp = r_->way_properties_[way];
+      if (idx > 0 ){ //&& wp.is_car_accessible()) {
         auto const& pred = r_->way_nodes_[way][idx - 1];
         if (rank < r_->node_importance_[pred] && accessible_node(pred)) {
           r_->sc_targets_[rank].push_back(pred);
         }
       }
       // add neighbors in backward direction with higher rank
-      if (idx < (r_->way_nodes_[way].size() - 1) && wp.is_car_accessible()) {
+      if (idx < (r_->way_nodes_[way].size() - 1)){ // && wp.is_car_accessible()) {
         auto const& succ = r_->way_nodes_[way][idx + 1];
         if (rank < r_->node_importance_[succ] && accessible_node(succ)) {
           r_->sc_targets_[rank].push_back(succ);
         }
       }
 
-      if (rank == 63) {
+      if (rank == 175) {
         std::cout << "Initial neighborhood of Node with rank 63: ";
         for (auto const n : r_->sc_targets_[rank]) {
           std::cout << to_idx(n) << ", ";

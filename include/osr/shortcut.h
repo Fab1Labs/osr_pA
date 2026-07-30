@@ -36,9 +36,9 @@ struct sc_properties{
     ways_.push_back(w);
     dirs_.push_back(d);
   }
-  osr::vec<osr::node_idx_t> nodes_;
-  osr::vec<osr::way_idx_t> ways_;
-  osr::vec<osr::direction> dirs_;
+  std::vec<osr::node_idx_t> nodes_;
+  std::vec<osr::way_idx_t> ways_;
+  std::vec<osr::direction> dirs_;
 
   // car::node(node_idx_t, way_pos, dir), cost, way_idx_t,
 };

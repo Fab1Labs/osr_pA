@@ -326,6 +326,8 @@ struct customization {
                   n.size(), r_->sc_costs_up_[rank].size());
 
       for (auto const [idx, neighbor] : utl::enumerate(n)) {
+        utl::verify(r_->node_importance_[node] < r_->node_importance_[neighbor], 
+            "Invalid Shortcut: Node {} -> Neighbor {}", r_->node_importance_[node], r_->node_importance_[neighbor]);
         auto const wd = find_way(node, neighbor);
         if (wd.way_ == osr::way_idx_t::invalid()) {
           r_->sc_costs_up_[rank][idx] = osr::clamp_cost(osr::kInfeasible);
@@ -365,10 +367,6 @@ struct customization {
         auto const& targets = r_->sc_targets_[neighbor_rank];
         auto const& uv_cost_up = r_->sc_costs_up_[rank][n_idx];
         auto const& uv_cost_down = r_->sc_costs_down_[rank][n_idx];
-        // if ((uv_cost_up == osr::kInfeasible) && 
-        //     (uv_cost_down == osr::kInfeasible)) {
-        //   continue;
-        // }
         
         for (std::size_t t_idx = n_idx + 1; t_idx < current_neighbors.size(); ++t_idx) {
           auto const& target = current_neighbors[t_idx];

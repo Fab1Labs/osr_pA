@@ -87,10 +87,10 @@ path reconstruct_bidir(typename P::parameters const& params,
   auto forward_segments = std::vector<path::segment>{};
   auto forward_dist = 0.0;
 
-  // return path{.cost_ = b.mu_,
-  //               .dist_ = 0,
-  //               .elevation_ = elevation_storage::elevation{},
-  //               .segments_ = forward_segments};
+  return path{.cost_ = b.mu_,
+                .dist_ = 0,
+                .elevation_ = elevation_storage::elevation{},
+                .segments_ = forward_segments};
 
   while (true) {
     auto const& entry = b.cost_f_.at(forward_n.get_key());
@@ -715,6 +715,7 @@ std::optional<path> route_cch_bidir_dijkstra(typename P::parameters const& param
                                   to, start, end, dir);
     }  
   }
+  std::cout << "TERMINATED: Exceeded Matches\n";
   return std::nullopt;
 }
 
