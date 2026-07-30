@@ -707,26 +707,40 @@ void extract(bool const with_platforms,
 
   //std::cout << "Nodes: " << w.r_->node_properties_.size();
   pt->status("CCH Preprocessing").in_high(w.n_ways()).out_bounds(96, 97);
-  auto contraction = cch::contraction{w.r_};
-  contraction.build_contraction_order();
-  contraction.init_neighborhoods();
-  contraction.contract_nodes();
-  // auto mip_proc = cch::mip_proc{w};
-  // mip_proc.build_contraction_order();
-  // mip_proc.init_neighborhoods();
-  // mip_proc.contract_nodes();
+  // auto contraction = cch::contraction{w.r_};
+  // contraction.build_contraction_order();
+  // contraction.init_neighborhoods();
+  // contraction.contract_nodes();
+  auto mip_proc = cch::mip_proc{w};
+  mip_proc.build_contraction_order();
+  mip_proc.init_neighborhoods();
+  mip_proc.contract_nodes();
+  mip_proc.filter_neighborhoods();
 
-  pt->status("CCH Customization").in_high(w.n_ways()).out_bounds(97, 99);
+  //pt->status("CCH Preparation Customization").in_high(w.n_ways()).out_bounds(97, 98);
   auto profile = search_profile::kCar;
   auto params = get_parameters(profile);
-  auto customization = cch::customization{contraction.contraction_order_, contraction.neighborhoods_, w.r_};
+  auto customization = cch::customization{w.r_};
   customization.calculate_direct_costs(profile, params);
+  //pt->status("CCH Customization").in_high(w.n_ways()).out_bounds(98, 99);
+  customization.basic_customization();
   // auto customization = cch::basic_customization{w, mip_proc};
   // customization.run(profile, params);
   w.r_->write(out);
 
-  pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
+  //pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
   lookup{w, out, cista::mmap::protection::WRITE}.build_rtree();
+  // std::uint64_t edge_size = 0;
+  // std::uint64_t max_neighbors = 0;
+  // for (auto n : w.r_->sc_targets_) {
+  //   auto size = n.size();
+  //   if (size > max_neighbors) {
+  //     max_neighbors = size;
+  //   }
+  //   edge_size += size;
+  // }
+  // std::cout << "#Nodes: " << w.r_->node_properties_.size() << " #Ways: " << w.r_->way_properties_.size() << " #Edges: " << edge_size << " #Max Neighbors: " << max_neighbors;
+  
   // std::cout << "Amount of all shortcuts: " << mip_proc.all_neighbors_.size() << "\n";
   // std::cout << "Car accessible shortcuts + ways: " << w.r_->shortcut_properties_.size() << "\n";
   // std::cout << "Amount of ways in graph: " << w.r_->way_properties_.size() << "\n";  

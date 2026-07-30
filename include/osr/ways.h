@@ -378,6 +378,12 @@ struct ways {
     vec_map<shortcut_idx_t, cch::shortcut_properties> shortcut_properties_;
     vec<cost_t> shortcut_costs_up_;
     vec<cost_t> shortcut_costs_down_;
+
+    vec<vec<cost_t>> sc_costs_up_;
+    vec<vec<cost_t>> sc_costs_down_;
+    vec<vec<node_idx_t>> sc_targets_;
+    vec<node_idx_t> contraction_order_;
+
     vec<cch::shortcut_nav_infos> in_shortcut_;
     vec<cch::shortcut_nav_infos> out_shortcut_;
 

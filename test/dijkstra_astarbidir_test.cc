@@ -247,6 +247,24 @@ TEST(dijkstra_astarbidir, hamburg) {
 TEST(dijkstra_astarbidir, aachen) {
   auto const raw_data = "test/aachen.osm.pbf";
   auto const data_dir = "test/aachen";
+  auto const num_samples = 10000U;
+  auto const max_cost = 3 * 3600U;
+  auto constexpr dir = direction::kForward;
+
+  if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
+    GTEST_SKIP() << raw_data << " not found";
+  }
+
+  load(raw_data, data_dir);
+  auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
+  auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
+
+  run(w, l, num_samples, max_cost, dir);
+}
+
+TEST(dijkstra_astarbidir, darmstadt_bismarckstr) {
+  auto const raw_data = "test/darmstadt-bismarckstr.osm.pbf";
+  auto const data_dir = "test/darmstadt-bismarckstr";
   auto const num_samples = 100U;
   auto const max_cost = 3 * 3600U;
   auto constexpr dir = direction::kForward;

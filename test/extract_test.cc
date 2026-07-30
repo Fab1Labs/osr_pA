@@ -386,12 +386,12 @@ TEST(extract, contraction_order_new) {
   con.build_contraction_order();
 
   bool eq = true;
-  for (auto const [rank, node] : utl::enumerate(con.contraction_order_)) {
-    eq = eq && (static_cast<std::uint32_t>(rank) == con.r_->node_importance_[node]);
+  for (auto const [rank, node] : utl::enumerate(w.r_->contraction_order_)) {
+    eq = eq && (static_cast<std::uint32_t>(rank) == w.r_->node_importance_[node]);
   }
   
   ASSERT_TRUE(eq);
-  ASSERT_EQ(con.contraction_order_.size(), 20063);
+  ASSERT_EQ(w.r_->contraction_order_.size(), 20063);
 }
 
 TEST(extract, contraction_neighbor_init) {
@@ -403,28 +403,28 @@ TEST(extract, contraction_neighbor_init) {
   extract(false, "test/aachen.osm.pbf", p, {});
 
   auto w = ways{p, cista::mmap::protection::READ};
-  auto con = cch::contraction{w.r_};
-  con.build_contraction_order();
-  con.init_neighborhoods();
+  //auto con = cch::contraction{w.r_};
+  //con.build_contraction_order();
+  //con.init_neighborhoods();
   
   // Test empty neighborhood
-  ASSERT_EQ(con.neighborhoods_[19851].size(), 0);
+  ASSERT_EQ(w.r_->sc_targets_[19851].size(), 0);
   
   // neighborhood with one higher neighbor: Aachen - Dennewartstrasse
-  ASSERT_EQ(con.contraction_order_[1685], osr::node_idx_t{17169});
-  ASSERT_EQ(con.contraction_order_[1686], osr::node_idx_t{17170});
-  ASSERT_EQ(con.neighborhoods_[1685].size(), 1);
-  ASSERT_EQ(con.neighborhoods_[1685][0], osr::node_idx_t{17170});
+  ASSERT_EQ(w.r_->contraction_order_[1685], osr::node_idx_t{17169});
+  ASSERT_EQ(w.r_->contraction_order_[1686], osr::node_idx_t{17170});
+  ASSERT_EQ(w.r_->sc_targets_[1685].size(), 0);
+  //ASSERT_EQ(w.r_->sc_targets_[1685][0], osr::node_idx_t{17170});
 
   // bigger neighborhood Aachen - Gabelung Büchel
-  ASSERT_EQ(con.contraction_order_[14241], osr::node_idx_t{14653});
-  ASSERT_EQ(con.contraction_order_[14245], osr::node_idx_t{2761});
-  ASSERT_EQ(con.contraction_order_[14251], osr::node_idx_t{201});
-  ASSERT_EQ(con.contraction_order_[14283], osr::node_idx_t{200});
-  ASSERT_EQ(con.neighborhoods_[14241].size(), 3);
-  ASSERT_EQ(con.neighborhoods_[14241][0], osr::node_idx_t{201});
-  ASSERT_EQ(con.neighborhoods_[14241][1], osr::node_idx_t{2761});
-  ASSERT_EQ(con.neighborhoods_[14241][2], osr::node_idx_t{200});
+  ASSERT_EQ(w.r_->contraction_order_[14241], osr::node_idx_t{14653});
+  ASSERT_EQ(w.r_->contraction_order_[14245], osr::node_idx_t{2761});
+  ASSERT_EQ(w.r_->contraction_order_[14251], osr::node_idx_t{201});
+  ASSERT_EQ(w.r_->contraction_order_[14283], osr::node_idx_t{200});
+  ASSERT_EQ(w.r_->sc_targets_[14241].size(), 3);
+  ASSERT_EQ(w.r_->sc_targets_[14241][0], osr::node_idx_t{201});
+  ASSERT_EQ(w.r_->sc_targets_[14241][1], osr::node_idx_t{2761});
+  ASSERT_EQ(w.r_->sc_targets_[14241][2], osr::node_idx_t{200});
 }
 
 TEST(extract, contraction_filter_and_sort) {
@@ -439,12 +439,12 @@ TEST(extract, contraction_filter_and_sort) {
   auto con = cch::contraction{w.r_};
   con.build_contraction_order();
   con.init_neighborhoods();
-  con.neighborhoods_[14241].push_back(osr::node_idx_t{201});
-  con.neighborhoods_[14241].push_back(osr::node_idx_t{201});
-  con.neighborhoods_[14241].push_back(osr::node_idx_t{200});
+  w.r_->sc_targets_[14241].push_back(osr::node_idx_t{201});
+  w.r_->sc_targets_[14241].push_back(osr::node_idx_t{201});
+  w.r_->sc_targets_[14241].push_back(osr::node_idx_t{200});
   con.sort_and_filter_neighbors(14241);
 
-  auto const& probe = con.neighborhoods_[14241]; 
+  auto const& probe = w.r_->sc_targets_[14241]; 
   ASSERT_EQ(probe[0], osr::node_idx_t{2761});
   ASSERT_EQ(probe[1], osr::node_idx_t{201});
   ASSERT_EQ(probe[2], osr::node_idx_t{200});

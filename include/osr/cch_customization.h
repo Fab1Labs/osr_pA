@@ -10,6 +10,7 @@
 #include "osr/cch_preprocessing.h"
 #include "osr/ways.h"
 #include "osr/types.h"
+#include "osr/shortcut.h"
 
 namespace cch {
 
@@ -261,27 +262,14 @@ struct customization {
     std::uint16_t way_pos_;
   };
 
-  customization(
-      osr::vec<osr::node_idx_t> const& co, 
-      osr::vec<osr::vec<osr::node_idx_t>> const& nh,
-      cista::wrapped<osr::ways::routing>& r)
-  : contraction_order_{co},
-    neighborhoods_{nh},
-    r_{r} {}
+  customization(cista::wrapped<osr::ways::routing>& r)
+  : r_{r} {}
 
   void calculate_direct_costs(osr::search_profile const& profile,
                               osr::profile_parameters const& params) {
     return with_valid_cch_profile(profile, [&]<osr::Profile P>(P&&) {
       auto const& pp = std::get<typename P::parameters>(params);
       return calculate_direct_costs<P>(pp);
-    });
-  }
-
-  void basic_customization(osr::search_profile const& profile, 
-                           osr::profile_parameters const& params) {
-    return with_valid_cch_profile(profile, [&]<osr::Profile P>(P&&) {
-      auto const& pp = std::get<typename P::parameters>(params);
-      return basic_customization<P>(pp);
     });
   }
 
@@ -293,48 +281,44 @@ struct customization {
       "Risk of Segmentation Fautl! In_ways.size() = {}, In_way_idx.size() = {}",
       in_ways.size(), in_way_idx.size());
     if (in_ways.empty() && in_way_idx.empty()) {
-      return way_data{
-        .way_ = osr::way_idx_t::invalid(), 
-        .dir_ = osr::direction::kForward, 
-        .way_pos_ = 0};
+      return way_data{.way_ = osr::way_idx_t::invalid(), 
+                      .dir_ = osr::direction::kForward, 
+                      .way_pos_ = 0};
     }
-
     for (auto const [idx, way] : utl::zip(in_way_idx, in_ways)) {
       if (idx > 0) {
         if (r_->way_nodes_[way][idx - 1] == to) {
-          return way_data{
-            .way_ = way, 
-            .dir_ = osr::direction::kBackward, 
-            .way_pos_ = static_cast<std::uint16_t>(idx - 1)};
+          return way_data{.way_ = way, 
+                          .dir_ = osr::direction::kBackward, 
+                          .way_pos_ = static_cast<std::uint16_t>(idx - 1)};
         }
       }
       if (idx < in_ways.size() - 1) {
         if (r_->way_nodes_[way][idx + 1] == to) {
-          return way_data{
-            .way_ = way, 
-            .dir_ = osr::direction::kForward, 
-            .way_pos_ = static_cast<std::uint16_t>(idx)};
+          return way_data{.way_ = way, 
+                          .dir_ = osr::direction::kForward, 
+                          .way_pos_ = static_cast<std::uint16_t>(idx)};
         }
       }
     }
-    return way_data{
-      .way_ = osr::way_idx_t::invalid(), 
-      .dir_ = osr::direction::kForward, 
-      .way_pos_ = 0};
+    return way_data{.way_ = osr::way_idx_t::invalid(), 
+                    .dir_ = osr::direction::kForward, 
+                    .way_pos_ = 0};
   }
 
   // calculate the existing edge costs here for customization preparation
   template<osr::Profile P>
   void calculate_direct_costs(typename P::parameters const& params) {
-    r_->sc_costs_up_.resize(contraction_order_.size());
-    r_->sc_costs_down_.resize(contraction_order_.size());
-    utl::verify(contraction_order_.size() == neighborhoods_.size(), 
+    auto const size = r_->contraction_order_.size();
+    r_->sc_costs_up_.resize(size);
+    r_->sc_costs_down_.resize(size);
+    utl::verify(r_->contraction_order_.size() == r_->sc_targets_.size(), 
                 "Risk of Segmentation Fault! Contraction order ({}) is not same size as neighborhood ({})",
-                contraction_order_.size(), neighborhoods_.size());
-    for (auto [rank, n] : utl::enumerate(neighborhoods_)) {
+                r_->contraction_order_.size(), r_->sc_targets_.size());
+    for (auto [rank, n] : utl::enumerate(r_->sc_targets_)) {
       if (n.empty()) { continue; }
-      auto const& node = contraction_order_[rank];
-      auto const node_cost = P::node_cost(params, r_->node_properties_[node]);
+      auto const& node = r_->contraction_order_[rank];
+      auto const node_cost = osr::clamp_cost(P::node_cost(params, r_->node_properties_[node]));
       r_->sc_costs_up_[rank].resize(n.size());
       r_->sc_costs_down_[rank].resize(n.size());
       utl::verify(n.size() == r_->sc_costs_up_[rank].size(),
@@ -344,28 +328,62 @@ struct customization {
       for (auto const [idx, neighbor] : utl::enumerate(n)) {
         auto const wd = find_way(node, neighbor);
         if (wd.way_ == osr::way_idx_t::invalid()) {
-          r_->sc_costs_up_[rank][idx] = osr::kInfeasible;
-          r_->sc_costs_down_[rank][idx] = osr::kInfeasible;
+          r_->sc_costs_up_[rank][idx] = osr::clamp_cost(osr::kInfeasible);
+          r_->sc_costs_down_[rank][idx] = osr::clamp_cost(osr::kInfeasible);
         } else {
           auto const& wp = r_->way_properties_[wd.way_];
           auto const dist = r_->get_way_node_distance(wd.way_, wd.way_pos_);
-          r_->sc_costs_up_[rank][idx] = P::way_cost(params, wp, wd.dir_, dist) +
-                                        P::node_cost(params, r_->node_properties_[neighbor]);
-          r_->sc_costs_down_[rank][idx] = P::way_cost(params, wp, osr::opposite(wd.dir_), dist) +
+          r_->sc_costs_up_[rank][idx] = osr::clamp_cost(P::way_cost(params, wp, wd.dir_, dist)) +
+                                        osr::clamp_cost(P::node_cost(params, r_->node_properties_[neighbor]));
+          r_->sc_costs_down_[rank][idx] = osr::clamp_cost(P::way_cost(params, wp, osr::opposite(wd.dir_), dist)) +
                                           node_cost;
         }
       }
     }
   }
 
-  template<osr::Profile P>
-  void basic_customization(typename P::parameters const& params) {
-    std::cout << params.uturn_penalty_;
-    return;
+  std::size_t find_target(osr::vec<osr::node_idx_t> const& targets, osr::node_idx_t t) { 
+    for (auto const [i, n] : utl::enumerate(targets)) {
+      if (n == t) {
+        return i;
+      }
+    }
+    return targets.size();
+  }
+
+  void basic_customization() {
+    for (std::uint32_t rank = 0; rank < r_->contraction_order_.size(); ++rank) {
+      utl::verify(r_->node_importance_.size() == r_->contraction_order_.size(), "rank provoked SF");
+      auto const& current_neighbors = r_->sc_targets_[rank];
+      if (current_neighbors.empty()) {
+        continue;
+      }
+      // customize for the edge from node to neighbor
+      for (auto const [n_idx, neighbor] : utl::enumerate(current_neighbors)) {
+        auto const& neighbor_rank = r_->node_importance_[neighbor];
+        utl::verify(rank < neighbor_rank, "node rank {} > neighbor rank {}!!", rank, neighbor_rank);
+        auto const& targets = r_->sc_targets_[neighbor_rank];
+        auto const& uv_cost_up = r_->sc_costs_up_[rank][n_idx];
+        auto const& uv_cost_down = r_->sc_costs_down_[rank][n_idx];
+        // if ((uv_cost_up == osr::kInfeasible) && 
+        //     (uv_cost_down == osr::kInfeasible)) {
+        //   continue;
+        // }
+        
+        for (std::size_t t_idx = n_idx + 1; t_idx < current_neighbors.size(); ++t_idx) {
+          auto const& target = current_neighbors[t_idx];
+          auto const t_in_n_idx = find_target(targets, target);
+          if (t_in_n_idx == targets.size()) { 
+            continue; }
+          r_->sc_costs_up_[neighbor_rank][t_in_n_idx] = std::min(r_->sc_costs_up_[neighbor_rank][t_in_n_idx], 
+                                                                 uv_cost_down + r_->sc_costs_up_[rank][t_idx]);
+          r_->sc_costs_down_[neighbor_rank][t_in_n_idx] = std::min(r_->sc_costs_down_[neighbor_rank][t_in_n_idx],
+                                                                   uv_cost_up + r_->sc_costs_down_[rank][t_idx]);
+        }
+      }
+    }
   }
   
-  osr::vec<osr::node_idx_t> const& contraction_order_;
-  osr::vec<osr::vec<osr::node_idx_t>> const& neighborhoods_; // <- sorted by importance
   cista::wrapped<osr::ways::routing>& r_;
 };
 } // namespace cch

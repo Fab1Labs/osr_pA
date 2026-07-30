@@ -2,7 +2,6 @@
 
 #include "osr/types.h"
 
-
 namespace cch {
 
 struct shortcut_properties {
@@ -24,6 +23,24 @@ struct shortcut_nav_infos {
 
   osr::way_idx_t way_;
   osr::direction dir_;
+};
+
+
+struct sc_properties{
+  sc_properties() = default;
+
+  void append(osr::node_idx_t const n,
+              osr::way_idx_t const w,
+              osr::direction const d) {
+    nodes_.push_back(n);
+    ways_.push_back(w);
+    dirs_.push_back(d);
+  }
+  osr::vec<osr::node_idx_t> nodes_;
+  osr::vec<osr::way_idx_t> ways_;
+  osr::vec<osr::direction> dirs_;
+
+  // car::node(node_idx_t, way_pos, dir), cost, way_idx_t,
 };
 
 } // namespace cch
