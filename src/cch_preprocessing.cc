@@ -72,11 +72,6 @@ bool cch::mip_proc::check_importance(osr::node_idx_t const& lhs,
 }
 
 // customize access functions to allow shortcuts for more profiles:
-bool cch::mip_proc::accessible_way(osr::way_idx_t const& w, osr::direction const& d) {
-  auto const& wp = ways_.r_->way_properties_[w];
-  return wp.is_car_accessible() && (d == osr::direction::kForward || !wp.is_oneway_car());
-}
-
 bool cch::mip_proc::accessible_node(osr::node_idx_t const& n) {
   auto const& np = ways_.r_->node_properties_[n];
   return np.is_car_accessible();
@@ -263,17 +258,7 @@ void cch::contraction::init_neighborhoods() {
     utl::verify(rank == r_->node_importance_[node], 
                 "Expected Node {} with rank {} but node came at rank {}",
                 node, r_->node_importance_[node], rank);
-    // if (!accessible_node(node)) {
-    //   continue;
-    // }
 
-    if (rank == 175) {
-      std::cout << "Initial neighborhood of Node with rank 63: ";
-      for (auto const n : r_->sc_targets_[rank]) {
-        std::cout << to_idx(n) << ", ";
-      }
-      std::cout << "\n";
-    } 
     auto const& in_ways = r_->node_ways_[node];
     auto const& idx_in_ways = r_->node_in_way_idx_[node];
     if (in_ways.empty() && idx_in_ways.empty()) {
@@ -283,7 +268,7 @@ void cch::contraction::init_neighborhoods() {
     for (auto const [idx, way] : utl::zip(idx_in_ways, in_ways)) {
       // add neighbors in forward direction with higher rank
       //auto const& wp = r_->way_properties_[way];
-      if (idx > 0 ){ //&& wp.is_car_accessible()) {
+      if (idx > 0){ //&& wp.is_car_accessible()) {
         auto const& pred = r_->way_nodes_[way][idx - 1];
         if (rank < r_->node_importance_[pred] && accessible_node(pred)) {
           r_->sc_targets_[rank].push_back(pred);
@@ -296,14 +281,6 @@ void cch::contraction::init_neighborhoods() {
           r_->sc_targets_[rank].push_back(succ);
         }
       }
-
-      if (rank == 175) {
-        std::cout << "Initial neighborhood of Node with rank 63: ";
-        for (auto const n : r_->sc_targets_[rank]) {
-          std::cout << to_idx(n) << ", ";
-        }
-        std::cout << "\n";
-      } 
     }
   }
 }

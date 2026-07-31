@@ -108,7 +108,8 @@ struct bidir_dijkstra {
           label l,
           osr::dial<label, get_bucket>& pq,
           cost_map& costs,
-          osr::vec<osr::cost_t> const& sc_costs) {
+          osr::vec<osr::cost_t> const& sc_costs,
+          osr::vec<cch::sc_properties> const& sc_properties) {
     auto const is_fwd = PathDir == osr::direction::kForward;
     auto const curr = l.get_node();
     auto const curr_cost = get_cost<PathDir>(curr);
@@ -125,25 +126,31 @@ struct bidir_dijkstra {
     }
 
     if(kGplus) {
-      //auto const& shortcuts = r.node_shortcuts_up_[curr.n_];
-      auto const& shortcuts = r.sc_targets_[curr_importance];
+      auto const& targets = r.sc_targets_[curr_importance];
 
       // add all shortcuts to the queue:
-      //for (auto const& sc : shortcuts) {
-      for (auto [t, c] : utl::zip(shortcuts, sc_costs)) {
-        //if (sc_costs[sc] == osr::kInfeasible) {
-        if (c == osr::kInfeasible || r.node_importance_[t] < curr_importance) {
+      for (auto [target, cost, property] : utl::zip(targets, sc_costs, sc_properties)) {
+        if (cost == osr::kInfeasible || r.node_importance_[target] < curr_importance) {
+          if (kDebug && cost == osr::kInfeasible) {
+            std::cout << "REJECTED: " << target << " with COST: " << cost << "\n";
+          }
+          if (kDebug && r.node_importance_[target] < curr_importance) {
+            std::cout << "REJECTED: " << target << " with lower importance than EXTRACTED\n";
+          }
           continue;
         }
+        utl::verify(target == property.nodes_.back(), 
+                    "Got target: {} but exptected: {}",
+                    property.nodes_.back(), target);
+        if (PathDir == osr::direction::kForward) {
+          utl::verify(cost == property.costs_.back(), 
+                      "Got costs: {} but exptected: {}",
+                    property.costs_.back(), cost);
+        }
 
-        //auto const& sc_struct = r.shortcut_properties_[sc];
-
-        // if (r.node_importance_[curr.n_] > r.node_importance_[sc_struct.upper_end_]) {
-        //   continue;
-        // }
         //auto const turn_cost = get_turn_cost(params, r, curr, sc);
         //auto const total_cost = curr_cost + turn_cost + sc_costs[sc];
-        auto const total_cost = osr::clamp_cost(c + curr_cost);
+        auto const total_cost = osr::clamp_cost(static_cast<std::uint64_t>(cost) + curr_cost);
 
         if (total_cost >= max && is_fwd) {
           max_reached_f_ = true;
@@ -154,13 +161,8 @@ struct bidir_dijkstra {
           break;
         }
 
-        // create neighbor node from shortcut target
-        // auto const neighbor = typename P::node{
-        //   sc_struct.upper_end_, 
-        //   r.get_way_pos(sc_struct.upper_end_, r.out_shortcut_[sc].way_), 
-        //   r.out_shortcut_[sc].dir_};
         auto const neighbor = typename P::node{
-          t, 0, PathDir
+          target, r.get_way_pos(target, property.ways_.back()), property.dirs_.back()
         };
 
         if constexpr (kDebug) {
@@ -174,27 +176,33 @@ struct bidir_dijkstra {
         if (costs[neighbor.get_key()].update(
             l, neighbor, total_cost, curr)) {
           auto next = label{neighbor, static_cast<osr::cost_t>(total_cost)};
-          //next.track(l, r, r.out_shortcut_[sc].way_, neighbor.get_node(), false);
+          next.track(l, r, property.ways_.back(), neighbor.get_node(), false);
           pq.push(std::move(next));
 
           if constexpr (kDebug) {
             is_fwd ? std::cout << " -> PUSH (fw)\n" : std::cout << " -> PUSH (bw)\n";
+            std::cout << "PATH: ";
+            for (auto const [no, wa, di, co] : utl::zip(property.nodes_, property.ways_, property.dirs_, property.costs_)) {
+              std::cout << " -(" << wa << ", " << di << ", "<< co << ")->";
+              std::cout << no << " ";
+            }
+            std::cout << "\n";
           }
         } else {
           if constexpr (kDebug) {
             is_fwd ? std::cout << " -> DOMINATED (fw)\n" : std::cout << " -> DOMINATED (bw)\n";
           }
         }
-      }
-      // check for breaking condition:
-      auto contrary_cost = get_cost<opposite(PathDir)>(curr);
-      auto total_cost = get_cost<PathDir>(curr);
-      if ((contrary_cost != osr::kInfeasible) && total_cost + contrary_cost < mu_) {
-        mu_ = total_cost + contrary_cost;
-        if constexpr (kDebug) { 
-          std::cout << "=> MEETING POINT: " << curr.n_ << " TOTAL COST: " << mu_ <<"\n";
+        // check for breaking condition:
+        auto contrary_cost = get_cost<osr::opposite(PathDir)>(neighbor);
+        auto total = get_cost<PathDir>(neighbor);
+        if ((contrary_cost != osr::kInfeasible) && total + contrary_cost < mu_) {
+          mu_ = total + contrary_cost;
+          if constexpr (kDebug) { 
+            std::cout << "=> MEETING POINT: " << neighbor.n_ << " TOTAL COST: " << mu_ <<"\n";
+          }
+          meet_point_ = neighbor;
         }
-        meet_point_ = curr;
       }
     } else {
       P::template adjacent<SearchDir, WithBlocked>( // lasse die adjacent drin, wegen optionaler feature flag
@@ -234,14 +242,14 @@ struct bidir_dijkstra {
           }
     
           // check for a potential meetpoint here:
-        auto contrary_cost = get_cost<opposite(PathDir)>(neighbor);
-          if ((contrary_cost != osr::kInfeasible) && total + contrary_cost < mu_) {
-            mu_ = total + contrary_cost;
-            meet_point_ = neighbor;
-            if constexpr (kDebug) { 
-              std::cout << "=> MEETING POINT: " << neighbor.n_ << " TOTAL COST: " << mu_ <<"\n";
+          auto contrary_cost = get_cost<osr::opposite(PathDir)>(neighbor);
+            if ((contrary_cost != osr::kInfeasible) && total + contrary_cost < mu_) {
+              mu_ = total + contrary_cost;
+              meet_point_ = neighbor;
+              if constexpr (kDebug) { 
+                std::cout << "=> MEETING POINT: " << neighbor.n_ << " TOTAL COST: " << mu_ <<"\n";
+              }
             }
-          }
       });
     }
  
@@ -259,16 +267,42 @@ struct bidir_dijkstra {
     while (!pq_f_.empty() && !pq_b_.empty()) {
 
       auto forward_n = pq_f_.pop();
+      auto fwd_importance = r.node_importance_[forward_n.get_node().n_];
       auto backward_n = pq_b_.pop();
+      auto bwd_importance = r.node_importance_[backward_n.get_node().n_];
 
       if (!run_single<SearchDir, WithBlocked, osr::direction::kForward>(
-          params, w, r, max, blocked, sharing, elevations, forward_n, pq_f_, cost_f_, r.sc_costs_up_[r.node_importance_[forward_n.n_]])) {
+          params, w, r, max, blocked, sharing, elevations, forward_n, pq_f_, cost_f_, r.sc_costs_up_[fwd_importance], r.sc_up_[fwd_importance])) {
         break;
       }
 
-      if (!run_single<opposite(SearchDir), WithBlocked, osr::direction::kBackward>(
-          params, w, r, max, blocked, sharing, elevations, backward_n, pq_b_, cost_b_, r.sc_costs_down_[r.node_importance_[backward_n.n_]])) {
+      if (!run_single<osr::opposite(SearchDir), WithBlocked, osr::direction::kBackward>(
+          params, w, r, max, blocked, sharing, elevations, backward_n, pq_b_, cost_b_, r.sc_costs_down_[bwd_importance], r.sc_up_[bwd_importance])) {
         break;
+      }
+
+      auto forward_up_cost = get_cost<osr::direction::kForward>(forward_n.get_node());
+      auto forward_down_cost = get_cost<osr::direction::kBackward>(forward_n.get_node());
+      if (forward_up_cost + forward_down_cost < mu_ &&
+          forward_up_cost != osr::kInfeasible && 
+          forward_down_cost != osr::kInfeasible) {
+        mu_ = forward_up_cost + forward_down_cost;
+        meet_point_ = forward_n.get_node();
+        if constexpr (kDebug) { 
+          std::cout << "=> MEETING POINT: " << forward_n.n_ << " TOTAL COST: " << mu_ <<"\n";
+        }
+      }
+
+      auto backward_up_cost = get_cost<osr::direction::kBackward>(backward_n.get_node());
+      auto backward_down_cost = get_cost<osr::direction::kForward>(backward_n.get_node());
+      if (backward_up_cost + backward_down_cost < mu_ &&
+          backward_up_cost != osr::kInfeasible && 
+          backward_down_cost != osr::kInfeasible) {
+        mu_ = backward_up_cost + backward_down_cost;
+        meet_point_ = backward_n.get_node();
+        if constexpr (kDebug) { 
+          std::cout << "=> MEETING POINT: " << backward_n.n_ << " TOTAL COST: " << mu_ <<"\n";
+        }
       }
 
       if (get_cost<osr::direction::kForward>(forward_n.get_node()) + 

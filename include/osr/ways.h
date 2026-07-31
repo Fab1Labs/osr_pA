@@ -381,6 +381,8 @@ struct ways {
 
     vec<vec<cost_t>> sc_costs_up_;
     vec<vec<cost_t>> sc_costs_down_;
+    vec<vec<cch::sc_properties>> sc_up_;
+    vec<vec<cch::sc_properties>> sc_down_;
     vec<vec<node_idx_t>> sc_targets_;
     vec<node_idx_t> contraction_order_;
 

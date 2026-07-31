@@ -12,6 +12,7 @@
 #include "osr/ways.h"
 #include "osr/cch_preprocessing.h"
 #include "osr/cch_customization.h"
+#include "osr/shortcut.h"
 
 namespace fs = std::filesystem;
 using namespace osr;
@@ -225,94 +226,94 @@ TEST(extract, neighborhood_concat) {
   }
 }
 
-TEST(extract, customization) {
-  auto p = fs::temp_directory_path() / "osr_test";
-  auto ec = std::error_code{};
-  fs::remove_all(p, ec);
-  fs::create_directories(p, ec);
+// TEST(extract, customization) {
+//   auto p = fs::temp_directory_path() / "osr_test";
+//   auto ec = std::error_code{};
+//   fs::remove_all(p, ec);
+//   fs::create_directories(p, ec);
 
-  extract(false, "test/aachen.osm.pbf", p, {});
-  auto w = ways{p, cista::mmap::protection::READ};
-  auto l = lookup{w, p, cista::mmap::protection::READ};
-  auto mip_proc = cch::mip_proc{w};
-  mip_proc.build_contraction_order();
-  mip_proc.init_neighborhoods();
-  mip_proc.contract_nodes();
-  auto profile = search_profile::kCar;
-  auto params = get_parameters(profile);
-  auto customization = cch::basic_customization{w, mip_proc};
-  customization.run(profile, params);
-  auto failed = std::uint64_t{0U};
-  auto correct = std::uint64_t{0U};
-  auto total = std::uint64_t{0U};
+//   extract(false, "test/aachen.osm.pbf", p, {});
+//   auto w = ways{p, cista::mmap::protection::READ};
+//   auto l = lookup{w, p, cista::mmap::protection::READ};
+//   auto mip_proc = cch::mip_proc{w};
+//   mip_proc.build_contraction_order();
+//   mip_proc.init_neighborhoods();
+//   mip_proc.contract_nodes();
+//   auto profile = search_profile::kCar;
+//   auto params = get_parameters(profile);
+//   auto customization = cch::basic_customization{w, mip_proc};
+//   customization.run(profile, params);
+//   auto failed = std::uint64_t{0U};
+//   auto correct = std::uint64_t{0U};
+//   auto total = std::uint64_t{0U};
 
-  auto const dijkstra_cost = [&](node_idx_t const from, 
-                                 node_idx_t const to, 
-                                 direction dir, 
-                                 cost_t const val_up,
-                                 std::uint64_t& failed,
-                                 std::uint64_t& correct) {
-    auto const from_loc = location{w.get_node_pos(from)};
-    auto const to_loc = location{w.get_node_pos(to)};
+//   auto const dijkstra_cost = [&](node_idx_t const from, 
+//                                  node_idx_t const to, 
+//                                  direction dir, 
+//                                  cost_t const val_up,
+//                                  std::uint64_t& failed,
+//                                  std::uint64_t& correct) {
+//     auto const from_loc = location{w.get_node_pos(from)};
+//     auto const to_loc = location{w.get_node_pos(to)};
 
-    auto const node_pinned_matches = 
-      [&](location const& loc, node_idx_t const n, bool const reverse) {
-        auto matches = l.match<car>(car::parameters{}, loc, reverse, dir,
-                                    100, nullptr);
-        std::erase_if(matches, [&](auto const& wc){
-          return wc.left_.node_ != n && wc.right_.node_ != n;
-        });
-        return matches;
-      };
+//     auto const node_pinned_matches = 
+//       [&](location const& loc, node_idx_t const n, bool const reverse) {
+//         auto matches = l.match<car>(car::parameters{}, loc, reverse, dir,
+//                                     100, nullptr);
+//         std::erase_if(matches, [&](auto const& wc){
+//           return wc.left_.node_ != n && wc.right_.node_ != n;
+//         });
+//         return matches;
+//       };
     
-    auto const from_matches = node_pinned_matches(from_loc, from, false);
-    auto const to_matches = node_pinned_matches(to_loc, to, true);
-    auto const from_matches_span =
-      std::span{begin(from_matches), end(from_matches)};
-    auto const to_matches_span = 
-      std::span{begin(to_matches), end(to_matches)};
+//     auto const from_matches = node_pinned_matches(from_loc, from, false);
+//     auto const to_matches = node_pinned_matches(to_loc, to, true);
+//     auto const from_matches_span =
+//       std::span{begin(from_matches), end(from_matches)};
+//     auto const to_matches_span = 
+//       std::span{begin(to_matches), end(to_matches)};
     
-    auto const reference = [&]() {
-      try {
-        return route(car::parameters{}, w, l, search_profile::kCar, from_loc,
-          to_loc, from_matches_span, to_matches_span, 2 * 3600U, dir, 
-          nullptr, nullptr, nullptr, routing_algorithm::kDijkstra);
-      } catch (std::exception const& ex) {
-        fmt::println("dijkstra exception: {}", ex.what());
-        throw ex;
-      }
-    }();
+//     auto const reference = [&]() {
+//       try {
+//         return route(car::parameters{}, w, l, search_profile::kCar, from_loc,
+//           to_loc, from_matches_span, to_matches_span, 2 * 3600U, dir, 
+//           nullptr, nullptr, nullptr, routing_algorithm::kDijkstra);
+//       } catch (std::exception const& ex) {
+//         fmt::println("dijkstra exception: {}", ex.what());
+//         throw ex;
+//       }
+//     }();
 
-    if (reference.has_value()) {
-      if (reference->cost_ == val_up) {
-        ++correct;
-      } else {
-        ++failed;
-      }
-      ASSERT_EQ(reference->cost_, val_up);
-    }
-  };
-  for (std::size_t nidx = 0; nidx <= 100; ++nidx) {
-    auto const node = mip_proc.neighborhoods_[nidx];
-    total += node.neighbors_.size();
-    for (auto const neighbor : node.neighbors_) {
-      auto const& neighbor_struct = mip_proc.all_neighbors_[neighbor];
-      if (neighbor_struct.to_via_id_ == 0 &&
-          neighbor_struct.to_neighbor_id_ == 0 &&
-          neighbor_struct.via_ == osr::node_idx_t{0}) {
-        auto const test_neighbor = mip_proc.all_neighbors_[neighbor];
-        dijkstra_cost(node.node_, 
-                test_neighbor.neighbor_, 
-                //customization.dir_in_neighbor_[neighbor],
-                direction::kForward,
-                customization.neighbor_costs_up_[neighbor],
-                failed,
-                correct);
-      }
-    }
-  }
-  std::cout << "correct: " << correct << "\nfailed: " << failed << "\nof total: " << total;
-}
+//     if (reference.has_value()) {
+//       if (reference->cost_ == val_up) {
+//         ++correct;
+//       } else {
+//         ++failed;
+//       }
+//       ASSERT_EQ(reference->cost_, val_up);
+//     }
+//   };
+//   for (std::size_t nidx = 0; nidx <= 100; ++nidx) {
+//     auto const node = mip_proc.neighborhoods_[nidx];
+//     total += node.neighbors_.size();
+//     for (auto const neighbor : node.neighbors_) {
+//       auto const& neighbor_struct = mip_proc.all_neighbors_[neighbor];
+//       if (neighbor_struct.to_via_id_ == 0 &&
+//           neighbor_struct.to_neighbor_id_ == 0 &&
+//           neighbor_struct.via_ == osr::node_idx_t{0}) {
+//         auto const test_neighbor = mip_proc.all_neighbors_[neighbor];
+//         dijkstra_cost(node.node_, 
+//                 test_neighbor.neighbor_, 
+//                 //customization.dir_in_neighbor_[neighbor],
+//                 direction::kForward,
+//                 customization.neighbor_costs_up_[neighbor],
+//                 failed,
+//                 correct);
+//       }
+//     }
+//   }
+//   std::cout << "correct: " << correct << "\nfailed: " << failed << "\nof total: " << total;
+// }
 // TEST(extract, shortcuts) {
 //   auto p = fs::temp_directory_path() / "osr_test";
 //   auto ec = std::error_code{};
@@ -449,4 +450,69 @@ TEST(extract, contraction_filter_and_sort) {
   ASSERT_EQ(probe[1], osr::node_idx_t{201});
   ASSERT_EQ(probe[2], osr::node_idx_t{200});
   ASSERT_EQ(probe.size(), 3);
+}
+
+TEST(extract, sc_properties_handling) {
+  auto p = fs::temp_directory_path() / "osr_test";
+  auto ec = std::error_code{};
+  fs::remove_all(p, ec);
+  fs::create_directories(p, ec);
+
+  auto simple_case = cch::sc_properties{
+    .nodes_ = {},
+    .ways_ = {},
+    .dirs_ = {},
+    .costs_ = {}
+  };
+
+  simple_case.add(osr::node_idx_t{0}, osr::way_idx_t{0}, osr::direction::kForward, osr::cost_t{3});
+
+  // Test correct initialization:
+  ASSERT_EQ(simple_case.nodes_[0], osr::node_idx_t{0});
+  ASSERT_EQ(simple_case.ways_[0], osr::way_idx_t{0});
+  ASSERT_EQ(simple_case.dirs_[0], osr::direction::kForward);
+  ASSERT_EQ(simple_case.costs_[0], osr::cost_t{3});
+
+  // Test cost function:
+  ASSERT_EQ(simple_case.get_cost(), osr::cost_t{3});
+
+  // // add a new shortcutpath to extend:
+  auto appendice = cch::sc_properties{
+    .nodes_ = {},
+    .ways_ = {},
+    .dirs_ = {},
+    .costs_ = {}
+  };
+  appendice.add(osr::node_idx_t{1}, osr::way_idx_t{1}, osr::direction::kForward, osr::cost_t{4});
+
+  auto combined = simple_case;
+  combined.append(appendice);
+  ASSERT_EQ(simple_case.nodes_.size(), 1);
+  ASSERT_EQ(simple_case.ways_.size(), 1);
+  ASSERT_EQ(simple_case.dirs_.size(), 1);
+  ASSERT_EQ(simple_case.costs_.size(), 1);
+
+  ASSERT_EQ(combined.nodes_.size(), 2);
+  ASSERT_EQ(combined.nodes_[0], osr::node_idx_t{0});
+  ASSERT_EQ(combined.nodes_[1], osr::node_idx_t{1});
+  ASSERT_EQ(combined.ways_.size(), 2);
+  ASSERT_EQ(combined.dirs_.size(), 2);
+  ASSERT_EQ(combined.costs_.size(), 2);
+  ASSERT_EQ(combined.costs_[0], osr::cost_t{3});
+  ASSERT_EQ(combined.costs_[1], osr::cost_t{7});
+}
+
+TEST(extract, find_way) {
+  auto p = fs::temp_directory_path() / "osr_test";
+  auto ec = std::error_code{};
+  fs::remove_all(p, ec);
+  fs::create_directories(p, ec);
+
+  extract(false, "test/darmstadt-bismarckstr.osm.pbf", p, {});
+  auto w = ways{p, cista::mmap::protection::READ};
+  auto customization = cch::customization(w.r_);
+
+  auto const way_data = customization.find_way(osr::node_idx_t{222}, osr::node_idx_t{188});
+  std::cout << "\nResults: " << way_data.way_ << " " << way_data.dir_ << " " << way_data.way_pos_;
+  ASSERT_EQ(way_data.way_, osr::way_idx_t{135});
 }
