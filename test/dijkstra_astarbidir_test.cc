@@ -120,7 +120,7 @@ void run(ways const& w,
                      to_loc, from_matches_span, to_matches_span, max_cost, dir,
                      nullptr, nullptr, nullptr, routing_algorithm::kBidirDijkstra);
       } catch (std::exception const& ex) {
-        fmt::println("a* bidir exception: {}", ex.what());
+        fmt::println("cch bidir exception: {}", ex.what());
         throw ex;
       }
     }();
@@ -151,7 +151,7 @@ void run(ways const& w,
       };
 
       print_result("dijkstra", reference, reference_time);
-      print_result("a* bidir", experiment, experiment_time);
+      print_result("cch bidir", experiment, experiment_time);
 
     } else {
       ++n_congruent;
