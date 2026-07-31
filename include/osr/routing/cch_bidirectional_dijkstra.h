@@ -22,7 +22,7 @@ struct bidir_dijkstra {
   using hash = typename P::hash;
   using cost_map = typename ankerl::unordered_dense::map<key, entry, hash>;
 
-  static constexpr auto const kDebug = true;
+  static constexpr auto const kDebug = false;
   static constexpr auto const kGplus = true; // <- Define to run the bidir dijkstra on normal graph or with shortcuts
 
   struct get_bucket{
