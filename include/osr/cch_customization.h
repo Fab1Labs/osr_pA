@@ -450,7 +450,7 @@ struct customization {
         if (costs[idx] == osr::kInfeasible) { continue; }
 
         utl::verify(r_->contraction_order_[rank] == p.nodes_.back(), 
-                    "Expected {} as end of the down path but got {}.",
+                    "Transformation: Expected {} as end of the down path but got {}.",
                     r_->contraction_order_[rank], p.nodes_.back());
         
         p.reverse_path(targets[idx]);
@@ -460,8 +460,11 @@ struct customization {
         properties[idx] = p;
 
         utl::verify(properties[idx].nodes_.back() == targets[idx], 
-                    "Expected target {} but got {}",
+                    "Transformation: Expected target {} but got {}",
                     targets[idx], properties[idx].nodes_.back());
+        utl::verify(properties[idx].costs_.back() == costs[idx],
+                    "Transformation: Expexted costs {} but got {}",
+                    costs[idx], properties[idx].costs_.back());
       }
     }
   }
