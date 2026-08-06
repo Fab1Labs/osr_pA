@@ -723,6 +723,7 @@ void extract(bool const with_platforms,
   customization.calculate_direct_costs(profile, params);
   pt->status("CCH Customization").in_high(w.n_ways()).out_bounds(98, 99);
   customization.basic_customization();
+  customization.transform_downward_paths();
   // auto customization = cch::basic_customization{w, mip_proc};
   // customization.run(profile, params);
   w.r_->write(out);

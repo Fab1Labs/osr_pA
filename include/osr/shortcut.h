@@ -51,6 +51,25 @@ struct sc_properties{
     }
   }
 
+  void reverse_path(osr::node_idx_t const& t) {
+    nodes_.pop_back(); // remove the downward target (current node for upward path)
+    std::reverse(nodes_.begin(), nodes_.end());
+    nodes_.push_back(t);
+  }
+
+  void transform_costs() {
+    // reverse costs
+    std::reverse(costs_.begin(), costs_.end());
+    // subtract predecessor costs
+    for (std::size_t i = 0; i < (costs_.size() - 1); ++i) {
+      costs_[i] -= costs_[i + 1];
+    }
+    // add up again
+    for (std::size_t i = 1; i < costs_.size(); ++i) {
+      costs_[i] += costs_[i - 1];
+    }
+  }
+
   void append(sc_properties& other) {
     nodes_.insert(nodes_.end(), other.nodes_.begin(), other.nodes_.end());
     ways_.insert(ways_.end(), other.ways_.begin(), other.ways_.end());

@@ -500,6 +500,39 @@ TEST(extract, sc_properties_handling) {
   ASSERT_EQ(combined.costs_.size(), 2);
   ASSERT_EQ(combined.costs_[0], osr::cost_t{3});
   ASSERT_EQ(combined.costs_[1], osr::cost_t{7});
+  auto reverse_example = cch::sc_properties{
+    .nodes_ = {},
+    .ways_ = {},
+    .dirs_ = {},
+    .costs_ = {}
+  };
+  reverse_example.add(osr::node_idx_t{1}, osr::way_idx_t{1}, osr::direction::kForward, osr::cost_t{1});
+  reverse_example.nodes_.push_back(osr::node_idx_t{2});
+  reverse_example.nodes_.push_back(osr::node_idx_t{3});
+  reverse_example.nodes_.push_back(osr::node_idx_t{4});
+  reverse_example.nodes_.push_back(osr::node_idx_t{5});
+  reverse_example.reverse_path(osr::node_idx_t{0});
+  ASSERT_EQ(reverse_example.nodes_[0], osr::node_idx_t{4});
+  ASSERT_EQ(reverse_example.nodes_[1], osr::node_idx_t{3});
+  ASSERT_EQ(reverse_example.nodes_[2], osr::node_idx_t{2});
+  ASSERT_EQ(reverse_example.nodes_[3], osr::node_idx_t{1});
+  ASSERT_EQ(reverse_example.nodes_[4], osr::node_idx_t{0});
+
+  reverse_example.costs_.push_back(osr::cost_t{3});
+  reverse_example.costs_.push_back(osr::cost_t{5});
+  reverse_example.costs_.push_back(osr::cost_t{7});
+  reverse_example.transform_costs();
+  ASSERT_EQ(reverse_example.costs_[0], osr::cost_t{2});
+  ASSERT_EQ(reverse_example.costs_[1], osr::cost_t{4});
+  ASSERT_EQ(reverse_example.costs_[2], osr::cost_t{6});
+  ASSERT_EQ(reverse_example.costs_[3], osr::cost_t{7});
+
+  simple_case.reverse_path(osr::node_idx_t{8});
+  ASSERT_EQ(simple_case.nodes_.size(), 1);
+  ASSERT_EQ(simple_case.nodes_[0], osr::node_idx_t{8});
+  simple_case.transform_costs();
+  ASSERT_EQ(simple_case.costs_.size(), 1);
+  ASSERT_EQ(simple_case.costs_[0], osr::cost_t{3});
 }
 
 TEST(extract, find_way) {

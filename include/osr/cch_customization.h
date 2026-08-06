@@ -439,6 +439,32 @@ struct customization {
       }
     }
   }
+
+  //transform downward paths that they can be used for upward search
+  void transform_downward_paths() {
+    for (std::uint32_t rank = 0; rank < r_->contraction_order_.size(); rank++) {
+      auto const& targets = r_->sc_targets_[rank];
+      auto const& costs = r_->sc_costs_down_[rank];
+      auto& properties = r_->sc_down_[rank];
+      for (auto [idx, p] : utl::enumerate(properties)) {
+        if (costs[idx] == osr::kInfeasible) { continue; }
+
+        utl::verify(r_->contraction_order_[rank] == p.nodes_.back(), 
+                    "Expected {} as end of the down path but got {}.",
+                    r_->contraction_order_[rank], p.nodes_.back());
+        
+        p.reverse_path(targets[idx]);
+        std::reverse(p.ways_.begin(), p.ways_.end());
+        std::reverse(p.dirs_.begin(), p.dirs_.end());
+        p.transform_costs();
+        properties[idx] = p;
+
+        utl::verify(properties[idx].nodes_.back() == targets[idx], 
+                    "Expected target {} but got {}",
+                    targets[idx], properties[idx].nodes_.back());
+      }
+    }
+  }
   
   cista::wrapped<osr::ways::routing>& r_;
 };
