@@ -706,15 +706,15 @@ void extract(bool const with_platforms,
   w.compute_big_street_neighbors();
 
   pt->status("CCH Preprocessing").in_high(w.n_ways()).out_bounds(96, 97);
-  // auto contraction = cch::contraction{w.r_};
-  // contraction.build_contraction_order();
-  // contraction.init_neighborhoods();
-  // contraction.contract_nodes();
-  auto mip_proc = cch::mip_proc{w};
-  mip_proc.build_contraction_order();
-  mip_proc.init_neighborhoods();
-  mip_proc.contract_nodes();
-  mip_proc.filter_neighborhoods();
+  auto contraction = cch::contraction{w.r_};
+  contraction.build_contraction_order();
+  contraction.init_neighborhoods();
+  contraction.contract_nodes();
+  // auto mip_proc = cch::mip_proc{w};
+  // mip_proc.build_contraction_order();
+  // mip_proc.init_neighborhoods();
+  // mip_proc.contract_nodes();
+  // mip_proc.filter_neighborhoods();
 
   pt->status("CCH Preparation Customization").in_high(w.n_ways()).out_bounds(97, 98);
   auto profile = search_profile::kCar;
@@ -724,8 +724,7 @@ void extract(bool const with_platforms,
   pt->status("CCH Customization").in_high(w.n_ways()).out_bounds(98, 99);
   customization.basic_customization();
   customization.transform_downward_paths();
-  // auto customization = cch::basic_customization{w, mip_proc};
-  // customization.run(profile, params);
+  customization.check_shortcut_correctness(w);
   w.r_->write(out);
 
   pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);

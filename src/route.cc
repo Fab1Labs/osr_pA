@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <optional>
+#include <iostream>
 
 #include "boost/thread/tss.hpp"
 

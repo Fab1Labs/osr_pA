@@ -533,6 +533,22 @@ TEST(extract, sc_properties_handling) {
   simple_case.transform_costs();
   ASSERT_EQ(simple_case.costs_.size(), 1);
   ASSERT_EQ(simple_case.costs_[0], osr::cost_t{3});
+
+  auto invalid_case = cch::sc_properties{
+    .nodes_ = {},
+    .ways_ = {},
+    .dirs_ = {},
+    .costs_ = {}
+  };
+  invalid_case.add(osr::node_idx_t{0}, osr::way_idx_t::invalid(), 
+      osr::direction::kForward, osr::kInfeasible);
+  invalid_case.reverse_path(osr::node_idx_t{1});
+  invalid_case.transform_costs();
+  ASSERT_EQ(invalid_case.nodes_.size(), 1);
+  ASSERT_EQ(invalid_case.nodes_.back(), osr::node_idx_t{1});
+  ASSERT_EQ(invalid_case.costs_.size(), 1);
+  ASSERT_EQ(invalid_case.costs_.back(), osr::kInfeasible);
+  ASSERT_EQ(invalid_case.ways_[0], osr::way_idx_t::invalid());
 }
 
 TEST(extract, find_way) {
