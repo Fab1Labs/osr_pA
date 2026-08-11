@@ -41,14 +41,25 @@ struct sc_properties{
     ways_.push_back(w);
     dirs_.push_back(d);
     costs_.push_back(c);
+    valid_ = c != osr::kInfeasible;
   }
 
-  osr::cost_t get_cost() {
-    if (costs_.size() > 0) {
-      return costs_.back();
-    } else {
+  osr::cost_t get_path_cost() const {
+    if (costs_.size() == 0) {
       return osr::kInfeasible;
     }
+
+    auto sum = osr::cost_t{0};
+    for (auto c : costs_) {
+      if (c != osr::kInfeasible) {
+        sum += c;
+      } else {
+        sum = osr::kInfeasible;
+        break;
+      }
+    }
+
+    return sum;
   }
 
   void reverse_path(osr::node_idx_t const& t) {
@@ -57,27 +68,15 @@ struct sc_properties{
     nodes_.push_back(t);
   }
 
-  void transform_costs() {
-    // reverse costs
-    std::reverse(costs_.begin(), costs_.end());
-    // subtract predecessor costs
-    for (std::size_t i = 0; i < (costs_.size() - 1); ++i) {
-      costs_[i] -= costs_[i + 1];
-    }
-    // add up again
-    for (std::size_t i = 1; i < costs_.size(); ++i) {
-      costs_[i] += costs_[i - 1];
-    }
-  }
-
   void append(sc_properties& other) {
+    utl::verify(valid_ && other.valid_, "[SC APPEND] Tried to concatenate invalid shortcuts.");
+
     nodes_.insert(nodes_.end(), other.nodes_.begin(), other.nodes_.end());
     ways_.insert(ways_.end(), other.ways_.begin(), other.ways_.end());
     dirs_.insert(dirs_.end(), other.dirs_.begin(), other.dirs_.end());
-    
-    auto new_costs = other.costs_;
-    std::for_each(new_costs.begin(), new_costs.end(), [this](osr::cost_t& c){ c += costs_.back();});
-    costs_.insert(costs_.end(), new_costs.begin(),new_costs.end());
+    costs_.insert(costs_.end(), other.costs_.begin(),other.costs_.end());
+    auto max_it = std::max_element(costs_.begin(), costs_.end());
+    valid_ = (max_it != costs_.end()) && (*max_it != osr::kInfeasible);
     utl::verify(nodes_.size() == ways_.size() &&
                 nodes_.size() == dirs_.size() && 
                 nodes_.size() == costs_.size(), 
@@ -89,6 +88,7 @@ struct sc_properties{
   osr::vec<osr::way_idx_t> ways_;
   osr::vec<osr::direction> dirs_;
   osr::vec<osr::cost_t> costs_;
+  bool valid_;
 
   // car::node(node_idx_t, way_pos, dir), cost, way_idx_t,
 };

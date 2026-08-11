@@ -120,10 +120,10 @@ struct customization {
           r_->sc_down_[rank][idx].add(node, wd.way_, osr::opposite(wd.dir_), cost_down);
 
           utl::verify(r_->sc_down_[rank][idx].nodes_.back() == node && 
-                      r_->sc_down_[rank][idx].costs_.back() == cost_down,
+                      r_->sc_down_[rank][idx].get_path_cost() == cost_down,
                       "Downward Edge is not initialized correctly.");
           utl::verify(r_->sc_up_[rank][idx].nodes_.back() == neighbor &&
-                      r_->sc_up_[rank][idx].costs_.back() == cost_up,
+                      r_->sc_up_[rank][idx].get_path_cost() == cost_up,
                       "Upward Edge is not initialized correctly.");
         }
       }
@@ -175,7 +175,7 @@ struct customization {
             utl::verify(r_->sc_up_[neighbor_rank][t_in_n_idx].ways_.back() != osr::way_idx_t::invalid(),
                         "Got unexpected invalid way in new upward shortcut");
             utl::verify(r_->sc_up_[neighbor_rank][t_in_n_idx].nodes_.back() == target && 
-                        r_->sc_up_[neighbor_rank][t_in_n_idx].costs_.back() == r_->sc_costs_up_[neighbor_rank][t_in_n_idx],
+                        r_->sc_up_[neighbor_rank][t_in_n_idx].get_path_cost() == r_->sc_costs_up_[neighbor_rank][t_in_n_idx],
                         "Upward Shortcut is not initialized correctly.");
           }
 
@@ -193,7 +193,7 @@ struct customization {
             utl::verify(r_->sc_down_[neighbor_rank][t_in_n_idx].ways_.back() != osr::way_idx_t::invalid(),
                         "Got unexpected invalid way in new downward shortcut");
             utl::verify(r_->sc_down_[neighbor_rank][t_in_n_idx].nodes_.back() == neighbor && 
-                        r_->sc_down_[neighbor_rank][t_in_n_idx].costs_.back() == r_->sc_costs_down_[neighbor_rank][t_in_n_idx],
+                        r_->sc_down_[neighbor_rank][t_in_n_idx].get_path_cost() == r_->sc_costs_down_[neighbor_rank][t_in_n_idx],
                         "Downward Shortcut is not initialized correctly.");
           }
         }
@@ -216,28 +216,28 @@ struct customization {
         path.reverse_path(target);
         std::reverse(path.ways_.begin(), path.ways_.end());
         std::reverse(path.dirs_.begin(), path.dirs_.end());
-        path.transform_costs();
+        std::reverse(path.costs_.begin(), path.costs_.end());
         properties[idx] = path;
 
         utl::verify(path.nodes_.back() == target, 
             "[TF DOWN] Expected target {} but got {}",
             target, path.nodes_.back());
-        utl::verify(path.costs_.back() == cost,
+        utl::verify(path.get_path_cost() == cost,
             "[TF DOWN] Expexted costs {} but got {}",
-            cost, path.costs_.back());
+            cost, path.get_path_cost());
         ++idx;
       }
     }
   }
 
   // helper function
-  void validate_costs(osr::vec<osr::cost_t> const& costs, bool is_up) {
-    auto const msg = " Expected increasing costs on path";
-    for (std::size_t i = 0; i < (costs.size() - 1); ++i) {
-      utl::verify(costs[i] <= costs[i + 1],
-          is_up ? std::string("[CSC UP]") + msg : std::string("[CSC DOWN]") + msg);
-    }
-  }
+  // void validate_costs(osr::vec<osr::cost_t> const& costs, bool is_up) {
+  //   auto const msg = " Expected increasing costs on path";
+  //   for (std::size_t i = 0; i < (costs.size() - 1); ++i) {
+  //     utl::verify(costs[i] <= costs[i + 1],
+  //         is_up ? std::string("[CSC UP]") + msg : std::string("[CSC DOWN]") + msg);
+  //   }
+  // }
 
   //helper function
   void validate_connectivity(osr::ways const& ways, cch::sc_properties const& path, 
@@ -299,24 +299,24 @@ struct customization {
       for (auto [target, cost, path] : utl::zip(targets, costs_up, path_up)) {
         utl::verify(r_->node_importance_[target] > r_->node_importance_[node],
             "[CSC] Importance of target is not higher than from current node");
-        utl::verify(target == path.nodes_.back() && cost == path.costs_.back(),
+        utl::verify(target == path.nodes_.back() && cost == path.get_path_cost(),
             "[CSC UP] Expected node {} with costs {} but got path with target {} and costs {}",
-            target, cost, path.nodes_.back(), path.costs_.back());
-        validate_costs(path.costs_, true);
+            target, cost, path.nodes_.back(), path.get_path_cost());
+        //validate_costs(path.costs_, true);
         validate_connectivity(w, path, node, true);
       }
 
       // check shortcuts downwards
       for (auto [target, cost, path] : utl::zip(targets, costs_down, path_down)) {
-        utl::verify(target == path.nodes_.back() && cost == path.costs_.back(),
+        utl::verify(target == path.nodes_.back() && cost == path.get_path_cost(),
             "[CSC DOWN] Expected node {} with costs {} but got path with target {} and costs {}",
-            target, cost, path.nodes_.back(), path.costs_.back());
+            target, cost, path.nodes_.back(), path.get_path_cost());
 
-        for (std::size_t i = 0; i < (path.costs_.size() - 1); ++i) {
-          utl::verify(path.costs_[i] <= path.costs_[i + 1],
-              "[CSC DOWN] Expected increasing costs on path");
-        }
-        validate_costs(path.costs_, false);
+        // for (std::size_t i = 0; i < (path.costs_.size() - 1); ++i) {
+        //   utl::verify(path.costs_[i] <= path.costs_[i + 1],
+        //       "[CSC DOWN] Expected increasing costs on path");
+        // }
+        //validate_costs(path.costs_, false);
         validate_connectivity(w, path, node, false);
       }
     }

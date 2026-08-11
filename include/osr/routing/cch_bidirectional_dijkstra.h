@@ -23,7 +23,7 @@ struct bidir_dijkstra {
   using hash = typename P::hash;
   using cost_map = typename ankerl::unordered_dense::map<key, entry, hash>;
 
-  static constexpr auto const kDebug = false;
+  static constexpr auto const kDebug = true;
   static constexpr auto const kGplus = true; // <- Define to run the bidir dijkstra on normal graph or with shortcuts
 
   struct get_bucket{
@@ -161,13 +161,13 @@ struct bidir_dijkstra {
         utl::verify(target == property.nodes_.back(), 
                     "Got target: {} but exptected: {}",
                     property.nodes_.back(), target);
-        utl::verify(cost == property.costs_.back(), 
+        utl::verify(cost == property.get_path_cost(), 
                     "Got costs: {} but exptected: {}",
-                    property.costs_.back(), cost);
+                    property.get_path_cost(), cost);
 
-        auto prev = l;            
+        auto prev = l;        
         for (auto [idx, node] : utl::enumerate(property.nodes_)) {
-          auto const neighbor_cost = osr::clamp_cost(static_cast<std::uint64_t>(property.costs_[idx]) + curr_cost);
+          auto const neighbor_cost = osr::clamp_cost(static_cast<std::uint64_t>(property.costs_[idx]) + prev.cost());
           
           if (neighbor_cost >= max && is_fwd) {
             max_reached_f_ = true;
@@ -212,8 +212,18 @@ struct bidir_dijkstra {
               is_fwd ? std::cout << " -> PUSH (fw)" : std::cout << " -> PUSH (bw)";
             }
           } else {
-            if constexpr (kDebug) {
-              is_fwd ? std::cout << " -> DOMINATED (fw)" : std::cout << " -> DOMINATED (bw)";
+            auto next = label{neighbor, get_cost<PathDir>(neighbor)};
+            prev = next;
+
+            if (get_cost<PathDir>(neighbor) == neighbor_cost) {
+              //pq.push(std::move(next));
+              if constexpr (kDebug) {
+                is_fwd ? std::cout << " -> DOMINATED BUT PUSHED (fw)" : std::cout << " -> DOMINATED BUT PUSHED (bw)";
+              }
+            } else {
+              if constexpr (kDebug) {
+                is_fwd ? std::cout << " -> DOMINATED (fw)" : std::cout << " -> DOMINATED (bw)";
+              }
             }
           }
 

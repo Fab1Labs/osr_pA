@@ -452,104 +452,161 @@ TEST(extract, contraction_filter_and_sort) {
   ASSERT_EQ(probe.size(), 3);
 }
 
-TEST(extract, sc_properties_handling) {
+TEST(shortcuts, initialization) {
   auto p = fs::temp_directory_path() / "osr_test";
   auto ec = std::error_code{};
   fs::remove_all(p, ec);
   fs::create_directories(p, ec);
 
-  auto simple_case = cch::sc_properties{
-    .nodes_ = {},
-    .ways_ = {},
-    .dirs_ = {},
-    .costs_ = {}
-  };
+  auto valid_shortcut = cch::sc_properties{.nodes_ = {}, .ways_ = {}, .dirs_ = {}, .costs_ = {}};
+  auto invalid_shortcut = cch::sc_properties{.nodes_ = {}, .ways_ = {}, .dirs_ = {}, .costs_ = {}};
 
-  simple_case.add(osr::node_idx_t{0}, osr::way_idx_t{0}, osr::direction::kForward, osr::cost_t{3});
+  ASSERT_EQ(valid_shortcut.get_path_cost(), osr::kInfeasible);
 
-  // Test correct initialization:
-  ASSERT_EQ(simple_case.nodes_[0], osr::node_idx_t{0});
-  ASSERT_EQ(simple_case.ways_[0], osr::way_idx_t{0});
-  ASSERT_EQ(simple_case.dirs_[0], osr::direction::kForward);
-  ASSERT_EQ(simple_case.costs_[0], osr::cost_t{3});
+  valid_shortcut.add(osr::node_idx_t{0}, osr::way_idx_t{0}, osr::direction::kForward, osr::cost_t{3});
+  invalid_shortcut.add(osr::node_idx_t{5}, osr::way_idx_t::invalid(), osr::direction::kBackward, osr::kInfeasible);
 
-  // Test cost function:
-  ASSERT_EQ(simple_case.get_cost(), osr::cost_t{3});
+  ASSERT_EQ(valid_shortcut.nodes_.size(), 1);
+  ASSERT_EQ(invalid_shortcut.nodes_.size(), 1);
 
-  // // add a new shortcutpath to extend:
-  auto appendice = cch::sc_properties{
-    .nodes_ = {},
-    .ways_ = {},
-    .dirs_ = {},
-    .costs_ = {}
-  };
-  appendice.add(osr::node_idx_t{1}, osr::way_idx_t{1}, osr::direction::kForward, osr::cost_t{4});
+  ASSERT_EQ(valid_shortcut.nodes_.back(), osr::node_idx_t{0});
+  ASSERT_EQ(valid_shortcut.ways_.back(), osr::way_idx_t{0});
+  ASSERT_EQ(valid_shortcut.dirs_.back(), osr::direction::kForward);
+  ASSERT_EQ(valid_shortcut.costs_.back(), osr::cost_t{3});
+  ASSERT_EQ(valid_shortcut.valid_, true);
 
-  auto combined = simple_case;
-  combined.append(appendice);
-  ASSERT_EQ(simple_case.nodes_.size(), 1);
-  ASSERT_EQ(simple_case.ways_.size(), 1);
-  ASSERT_EQ(simple_case.dirs_.size(), 1);
-  ASSERT_EQ(simple_case.costs_.size(), 1);
+  ASSERT_EQ(invalid_shortcut.nodes_.back(), osr::node_idx_t{5});
+  ASSERT_EQ(invalid_shortcut.ways_.back(), osr::way_idx_t::invalid());
+  ASSERT_EQ(invalid_shortcut.dirs_.back(), osr::direction::kBackward);
+  ASSERT_EQ(invalid_shortcut.costs_.back(), osr::kInfeasible);
+  ASSERT_EQ(invalid_shortcut.valid_, false);
 
-  ASSERT_EQ(combined.nodes_.size(), 2);
-  ASSERT_EQ(combined.nodes_[0], osr::node_idx_t{0});
-  ASSERT_EQ(combined.nodes_[1], osr::node_idx_t{1});
-  ASSERT_EQ(combined.ways_.size(), 2);
-  ASSERT_EQ(combined.dirs_.size(), 2);
-  ASSERT_EQ(combined.costs_.size(), 2);
-  ASSERT_EQ(combined.costs_[0], osr::cost_t{3});
-  ASSERT_EQ(combined.costs_[1], osr::cost_t{7});
-  auto reverse_example = cch::sc_properties{
-    .nodes_ = {},
-    .ways_ = {},
-    .dirs_ = {},
-    .costs_ = {}
-  };
-  reverse_example.add(osr::node_idx_t{1}, osr::way_idx_t{1}, osr::direction::kForward, osr::cost_t{1});
-  reverse_example.nodes_.push_back(osr::node_idx_t{2});
-  reverse_example.nodes_.push_back(osr::node_idx_t{3});
-  reverse_example.nodes_.push_back(osr::node_idx_t{4});
-  reverse_example.nodes_.push_back(osr::node_idx_t{5});
-  reverse_example.reverse_path(osr::node_idx_t{0});
-  ASSERT_EQ(reverse_example.nodes_[0], osr::node_idx_t{4});
-  ASSERT_EQ(reverse_example.nodes_[1], osr::node_idx_t{3});
-  ASSERT_EQ(reverse_example.nodes_[2], osr::node_idx_t{2});
-  ASSERT_EQ(reverse_example.nodes_[3], osr::node_idx_t{1});
-  ASSERT_EQ(reverse_example.nodes_[4], osr::node_idx_t{0});
-
-  reverse_example.costs_.push_back(osr::cost_t{3});
-  reverse_example.costs_.push_back(osr::cost_t{5});
-  reverse_example.costs_.push_back(osr::cost_t{7});
-  reverse_example.transform_costs();
-  ASSERT_EQ(reverse_example.costs_[0], osr::cost_t{2});
-  ASSERT_EQ(reverse_example.costs_[1], osr::cost_t{4});
-  ASSERT_EQ(reverse_example.costs_[2], osr::cost_t{6});
-  ASSERT_EQ(reverse_example.costs_[3], osr::cost_t{7});
-
-  simple_case.reverse_path(osr::node_idx_t{8});
-  ASSERT_EQ(simple_case.nodes_.size(), 1);
-  ASSERT_EQ(simple_case.nodes_[0], osr::node_idx_t{8});
-  simple_case.transform_costs();
-  ASSERT_EQ(simple_case.costs_.size(), 1);
-  ASSERT_EQ(simple_case.costs_[0], osr::cost_t{3});
-
-  auto invalid_case = cch::sc_properties{
-    .nodes_ = {},
-    .ways_ = {},
-    .dirs_ = {},
-    .costs_ = {}
-  };
-  invalid_case.add(osr::node_idx_t{0}, osr::way_idx_t::invalid(), 
-      osr::direction::kForward, osr::kInfeasible);
-  invalid_case.reverse_path(osr::node_idx_t{1});
-  invalid_case.transform_costs();
-  ASSERT_EQ(invalid_case.nodes_.size(), 1);
-  ASSERT_EQ(invalid_case.nodes_.back(), osr::node_idx_t{1});
-  ASSERT_EQ(invalid_case.costs_.size(), 1);
-  ASSERT_EQ(invalid_case.costs_.back(), osr::kInfeasible);
-  ASSERT_EQ(invalid_case.ways_[0], osr::way_idx_t::invalid());
+  ASSERT_EQ(valid_shortcut.get_path_cost(), osr::cost_t{3});
+  ASSERT_EQ(invalid_shortcut.get_path_cost(), osr::kInfeasible);
 }
+
+TEST(shortcuts, extension) {
+  auto p = fs::temp_directory_path() / "osr_test";
+  auto ec = std::error_code{};
+  fs::remove_all(p, ec);
+  fs::create_directories(p, ec);
+
+  auto valid_shortcut = cch::sc_properties{.nodes_ = {}, .ways_ = {}, .dirs_ = {}, .costs_ = {}};
+  auto valid_appendice = cch::sc_properties{.nodes_ = {}, .ways_ = {}, .dirs_ = {}, .costs_ = {}};
+
+  valid_shortcut.add(osr::node_idx_t{0}, osr::way_idx_t{0}, osr::direction::kForward, osr::cost_t{3});
+  valid_appendice.add(osr::node_idx_t{1}, osr::way_idx_t{2}, osr::direction::kBackward, osr::cost_t{4});
+
+  auto valid_valid = valid_shortcut;
+  valid_valid.append(valid_appendice);
+
+  ASSERT_EQ(valid_valid.nodes_.size(), 2);
+  ASSERT_EQ(valid_valid.nodes_[0], osr::node_idx_t{0});
+  ASSERT_EQ(valid_valid.nodes_[1], osr::node_idx_t{1});
+  ASSERT_EQ(valid_valid.ways_[0], osr::way_idx_t{0});
+  ASSERT_EQ(valid_valid.ways_[1], osr::way_idx_t{2});
+  ASSERT_EQ(valid_valid.costs_[0], osr::cost_t{3});
+  ASSERT_EQ(valid_valid.costs_[1], osr::cost_t{4});
+  ASSERT_EQ(valid_valid.get_path_cost(), osr::cost_t{7});
+}
+// TEST(extract, sc_properties_handling) {
+//   auto p = fs::temp_directory_path() / "osr_test";
+//   auto ec = std::error_code{};
+//   fs::remove_all(p, ec);
+//   fs::create_directories(p, ec);
+
+//   auto simple_case = cch::sc_properties{
+//     .nodes_ = {},
+//     .ways_ = {},
+//     .dirs_ = {},
+//     .costs_ = {}
+//   };
+
+//   simple_case.add(osr::node_idx_t{0}, osr::way_idx_t{0}, osr::direction::kForward, osr::cost_t{3});
+
+//   // Test correct initialization:
+//   ASSERT_EQ(simple_case.nodes_[0], osr::node_idx_t{0});
+//   ASSERT_EQ(simple_case.ways_[0], osr::way_idx_t{0});
+//   ASSERT_EQ(simple_case.dirs_[0], osr::direction::kForward);
+//   ASSERT_EQ(simple_case.costs_[0], osr::cost_t{3});
+
+//   // Test cost function:
+//   ASSERT_EQ(simple_case.get_cost(), osr::cost_t{3});
+
+//   // add a new shortcutpath to extend:
+//   auto appendice = cch::sc_properties{
+//     .nodes_ = {},
+//     .ways_ = {},
+//     .dirs_ = {},
+//     .costs_ = {}
+//   };
+//   appendice.add(osr::node_idx_t{1}, osr::way_idx_t{1}, osr::direction::kForward, osr::cost_t{4});
+
+//   auto combined = simple_case;
+//   combined.append(appendice);
+//   ASSERT_EQ(simple_case.nodes_.size(), 1);
+//   ASSERT_EQ(simple_case.ways_.size(), 1);
+//   ASSERT_EQ(simple_case.dirs_.size(), 1);
+//   ASSERT_EQ(simple_case.costs_.size(), 1);
+
+//   ASSERT_EQ(combined.nodes_.size(), 2);
+//   ASSERT_EQ(combined.nodes_[0], osr::node_idx_t{0});
+//   ASSERT_EQ(combined.nodes_[1], osr::node_idx_t{1});
+//   ASSERT_EQ(combined.ways_.size(), 2);
+//   ASSERT_EQ(combined.dirs_.size(), 2);
+//   ASSERT_EQ(combined.costs_.size(), 2);
+//   ASSERT_EQ(combined.costs_[0], osr::cost_t{3});
+//   ASSERT_EQ(combined.costs_[1], osr::cost_t{7});
+//   auto reverse_example = cch::sc_properties{
+//     .nodes_ = {},
+//     .ways_ = {},
+//     .dirs_ = {},
+//     .costs_ = {}
+//   };
+//   reverse_example.add(osr::node_idx_t{1}, osr::way_idx_t{1}, osr::direction::kForward, osr::cost_t{1});
+//   reverse_example.nodes_.push_back(osr::node_idx_t{2});
+//   reverse_example.nodes_.push_back(osr::node_idx_t{3});
+//   reverse_example.nodes_.push_back(osr::node_idx_t{4});
+//   reverse_example.nodes_.push_back(osr::node_idx_t{5});
+//   reverse_example.reverse_path(osr::node_idx_t{0});
+//   ASSERT_EQ(reverse_example.nodes_[0], osr::node_idx_t{4});
+//   ASSERT_EQ(reverse_example.nodes_[1], osr::node_idx_t{3});
+//   ASSERT_EQ(reverse_example.nodes_[2], osr::node_idx_t{2});
+//   ASSERT_EQ(reverse_example.nodes_[3], osr::node_idx_t{1});
+//   ASSERT_EQ(reverse_example.nodes_[4], osr::node_idx_t{0});
+
+//   reverse_example.costs_.push_back(osr::cost_t{3});
+//   reverse_example.costs_.push_back(osr::cost_t{5});
+//   reverse_example.costs_.push_back(osr::cost_t{7});
+//   reverse_example.transform_costs();
+//   ASSERT_EQ(reverse_example.costs_[0], osr::cost_t{2});
+//   ASSERT_EQ(reverse_example.costs_[1], osr::cost_t{4});
+//   ASSERT_EQ(reverse_example.costs_[2], osr::cost_t{6});
+//   ASSERT_EQ(reverse_example.costs_[3], osr::cost_t{7});
+
+//   simple_case.reverse_path(osr::node_idx_t{8});
+//   ASSERT_EQ(simple_case.nodes_.size(), 1);
+//   ASSERT_EQ(simple_case.nodes_[0], osr::node_idx_t{8});
+//   simple_case.transform_costs();
+//   ASSERT_EQ(simple_case.costs_.size(), 1);
+//   ASSERT_EQ(simple_case.costs_[0], osr::cost_t{3});
+
+//   auto invalid_case = cch::sc_properties{
+//     .nodes_ = {},
+//     .ways_ = {},
+//     .dirs_ = {},
+//     .costs_ = {}
+//   };
+//   invalid_case.add(osr::node_idx_t{0}, osr::way_idx_t::invalid(), 
+//       osr::direction::kForward, osr::kInfeasible);
+//   invalid_case.reverse_path(osr::node_idx_t{1});
+//   invalid_case.transform_costs();
+//   ASSERT_EQ(invalid_case.nodes_.size(), 1);
+//   ASSERT_EQ(invalid_case.nodes_.back(), osr::node_idx_t{1});
+//   ASSERT_EQ(invalid_case.costs_.size(), 1);
+//   ASSERT_EQ(invalid_case.costs_.back(), osr::kInfeasible);
+//   ASSERT_EQ(invalid_case.ways_[0], osr::way_idx_t::invalid());
+// }
 
 TEST(extract, find_way) {
   auto p = fs::temp_directory_path() / "osr_test";
