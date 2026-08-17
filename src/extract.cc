@@ -721,13 +721,13 @@ void extract(bool const with_platforms,
   auto params = get_parameters(profile);
   auto customization = cch::customization{w.r_};
   customization.calculate_direct_costs(profile, params);
-  pt->status("CCH Customization").in_high(w.n_ways()).out_bounds(98, 99);
+  //pt->status("CCH Customization").in_high(w.n_ways()).out_bounds(98, 99);
   customization.basic_customization();
   customization.transform_downward_paths();
   customization.check_shortcut_correctness(w);
   w.r_->write(out);
 
-  pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
+  //pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
   lookup{w, out, cista::mmap::protection::WRITE}.build_rtree();
 }
 

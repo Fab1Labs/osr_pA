@@ -39,27 +39,26 @@ struct customization {
     auto const& in_ways = r_->node_ways_[from];
     auto const& in_way_idx = r_->node_in_way_idx_[from];
     utl::verify(in_ways.size() == in_way_idx.size(),
-      "Risk of Segmentation Fautl! In_ways.size() = {}, In_way_idx.size() = {}",
+      "Risk of Segmentation Fault! In_ways.size() = {}, In_way_idx.size() = {}",
       in_ways.size(), in_way_idx.size());
+
     if (in_ways.empty() && in_way_idx.empty()) {
       return way_data{.way_ = osr::way_idx_t::invalid(), 
                       .dir_ = osr::direction::kBackward, 
                       .way_pos_ = 0};
     }
     for (auto const [idx, way] : utl::zip(in_way_idx, in_ways)) {
-      if (idx > 0) {
-        if (r_->way_nodes_[way][idx - 1] == to) {
-          return way_data{.way_ = way, 
-                          .dir_ = osr::direction::kBackward, 
-                          .way_pos_ = static_cast<std::uint16_t>(idx - 1)};
-        }
+      auto const& wp = r_->way_properties_[way];
+      if (!wp.is_car_accessible_) { continue; }
+      if (idx > 0 && r_->way_nodes_[way][idx - 1] == to) {
+        return way_data{.way_ = way, 
+                        .dir_ = osr::direction::kBackward, 
+                        .way_pos_ = static_cast<std::uint16_t>(idx - 1)};
       }
-      if (idx < (r_->way_nodes_[way].size() - 1)) {
-        if (r_->way_nodes_[way][idx + 1] == to) {
-          return way_data{.way_ = way, 
-                          .dir_ = osr::direction::kForward, 
-                          .way_pos_ = static_cast<std::uint16_t>(idx)};
-        }
+      if (idx < (r_->way_nodes_[way].size() - 1) && r_->way_nodes_[way][idx + 1] == to) {
+        return way_data{.way_ = way, 
+                        .dir_ = osr::direction::kForward, 
+                        .way_pos_ = static_cast<std::uint16_t>(idx)};
       }
     }
     return way_data{.way_ = osr::way_idx_t::invalid(), 

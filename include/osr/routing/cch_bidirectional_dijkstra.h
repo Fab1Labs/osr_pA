@@ -188,7 +188,11 @@ struct bidir_dijkstra {
                     "Got costs: {} but exptected: {}",
                     property.get_path_cost(), cost);
 
-        auto const neighbor_cost = osr::clamp_cost(static_cast<std::uint64_t>(cost) + curr_cost);
+        auto neighbor_cost = osr::clamp_cost(static_cast<std::uint64_t>(cost) + curr_cost);
+        if (curr.way_ == r.get_way_pos(curr.n_, property.ways_[0]) && 
+            curr.dir_ == osr::opposite(property.dirs_[0])) {
+          neighbor_cost += params.uturn_penalty_;
+        }
 
         if (neighbor_cost >= max && is_fwd) {
           max_reached_f_ = true;
