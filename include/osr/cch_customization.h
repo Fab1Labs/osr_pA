@@ -105,10 +105,21 @@ struct customization {
         } else {
           auto const& wp = r_->way_properties_[wd.way_];
           auto const dist = r_->get_way_node_distance(wd.way_, wd.way_pos_);
-          auto const cost_up = osr::clamp_cost(static_cast<std::uint64_t>(P::way_cost(params, wp, wd.dir_, dist))) +
-                               osr::clamp_cost(static_cast<std::uint64_t>(P::node_cost(params, r_->node_properties_[neighbor])));
-          auto const cost_down = osr::clamp_cost(static_cast<std::uint64_t>(P::way_cost(params, wp, osr::opposite(wd.dir_), dist))) +
-                                          node_cost;
+
+          auto const wc_up = P::way_cost(params, wp, wd.dir_, dist);
+          auto const wc_down = P::way_cost(params, wp, osr::opposite(wd.dir_), dist);
+          auto const neighbor_cost = P::node_cost(params, r_->node_properties_[neighbor]);
+          auto cost_up = osr::clamp_cost(static_cast<std::uint64_t>(wc_up)) +
+              osr::clamp_cost(static_cast<std::uint64_t>(neighbor_cost));
+          auto cost_down = osr::clamp_cost(static_cast<std::uint64_t>(wc_down)) + 
+              osr::clamp_cost(static_cast<std::uint64_t>(node_cost));
+
+          if (wc_up == osr::kInfeasible || neighbor_cost == osr::kInfeasible) {
+            cost_up = osr::kInfeasible;
+          }
+          if (wc_down == osr::kInfeasible || node_cost == osr::kInfeasible) {
+            cost_down = osr::kInfeasible;
+          }     
           r_->sc_costs_up_[rank][idx] = cost_up;
           r_->sc_costs_down_[rank][idx] = cost_down;
 
