@@ -71,6 +71,45 @@ routing_algorithm to_algorithm(std::string_view s) {
   throw utl::fail("unknown routing algorithm: {}", s);
 }
 
+// template <Profile P>
+// path reconstruct_cch_bidir(typename P::parameters const& params, 
+//                         ways const& w,
+//                         lookup const& l,
+//                         bitvec<node_idx_t> const* blocked,
+//                         sharing_data const* sharing,
+//                         elevation_storage const* elevations,
+//                         cch::bidir_dijkstra<P> const& b, 
+//                         location const& from,
+//                         location const& to, 
+//                         way_candidate const& start,
+//                         way_candidate const& dest,
+//                         direction const dir) {
+//   auto forward_n = b.meet_point_;
+//   auto forward_segments = std::vector<path::segment>{};
+//   auto forward_dist = 0.0;
+
+//   while (true) {
+//     auto const& entry = b.cost_f_.at(forward_n.get_key());
+//     auto const pred = entry.pred(forward_n);
+//     if (pred.has_value()) {
+//       auto const& sc = w.r_->get_shortcut(pred.get_node(), forward_n.get_node());
+
+//       // add all nodes from the path
+//       for (std::size_t i = (sc.nodes_.size() - 1); i >= 0; --i) {
+//         auto pred = typename P::node{
+//           sc.nodes_[i], w.r_->get_way_pos(sc.nodes_[i], sc.ways_[i]), sc.dirs_[i]
+//         };
+//         auto const exptected_cost = sc.costs_[i];
+//         dist += add_path<P>(params, w, *w.r_, blocked, sharing, elevations, *pred,
+//                             forward_n, expected_cost, forward_segments, dir);
+//       }
+//     } else {
+//       break;
+//     }
+//     forward_n = *pred;
+//   }
+// }
+
 template <Profile P>
 path reconstruct_bidir(typename P::parameters const& params, 
                         ways const& w,
@@ -84,7 +123,7 @@ path reconstruct_bidir(typename P::parameters const& params,
                         way_candidate const& start,
                         way_candidate const& dest,
                         direction const dir) {
-  auto forward_n = b.meet_point_;
+  auto forward_n = b.meet_point_f_;
   auto forward_segments = std::vector<path::segment>{};
   auto forward_dist = 0.0;
 
@@ -124,7 +163,7 @@ path reconstruct_bidir(typename P::parameters const& params,
      .mode_ = forward_n.get_mode()});
 
   auto backward_segments = std::vector<path::segment>{};
-  auto backward_n = b.meet_point_;
+  auto backward_n = b.meet_point_b_;
   auto backward_dist = 0.0;
 
   while (true) {
@@ -703,7 +742,8 @@ std::optional<path> route_cch_bidir_dijkstra(typename P::parameters const& param
       should_continue = b.run(params, w, *w.r_, max, blocked, sharing, elevations, dir);
 
       // check if a mu was already found:
-      if (b.meet_point_.get_node() == node_idx_t::invalid()) {
+      if (b.meet_point_f_.get_node() == node_idx_t::invalid() && 
+          b.meet_point_b_.get_node() == node_idx_t::invalid()) {
         if (should_continue) {
           continue;
         } else {

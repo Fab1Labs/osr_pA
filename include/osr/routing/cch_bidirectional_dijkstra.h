@@ -23,7 +23,7 @@ struct bidir_dijkstra {
   using hash = typename P::hash;
   using cost_map = typename ankerl::unordered_dense::map<key, entry, hash>;
 
-  static constexpr auto const kDebug = true;
+  static constexpr auto const kDebug = false;
   static constexpr auto const kGplus = true; // <- Define to run the bidir dijkstra on normal graph or with shortcuts
 
   struct get_bucket{
@@ -46,7 +46,8 @@ struct bidir_dijkstra {
     mu_ = osr::kInfeasible;
     curr_fw_cost_ = osr::cost_t{0U};
     curr_bw_cost_ = osr::cost_t{0U};
-    meet_point_ = meet_point_.invalid();
+    meet_point_f_ = meet_point_f_.invalid();
+    meet_point_b_ = meet_point_b_.invalid();
   }
 
   void add_start(osr::ways const& w, label const l) {
@@ -93,9 +94,11 @@ struct bidir_dijkstra {
   }
 
   template <osr::direction PathDir>
-  osr::cost_t find_opposite(P::parameters const& params, node const n, osr::way_idx_t const way, osr::ways::routing const& r) {
+  std::tuple<osr::cost_t, node> find_opposite(P::parameters const& params, node const n, 
+                     osr::way_idx_t const way, osr::ways::routing const& r) {
     auto const ways = r.node_ways_[n.n_];
     auto min_cost = osr::kInfeasible;
+    auto contr_node = P::node::invalid();
     for (auto w : ways) {
       auto const way_pos = r.get_way_pos(n.n_, w);
 
@@ -105,7 +108,8 @@ struct bidir_dijkstra {
         op_cost += params.uturn_penalty_;
       }
       if (op_cost < min_cost) {
-        min_cost = op_cost; 
+        min_cost = op_cost;
+        contr_node = op_node;
       }
 
       op_node = node{n.n_, way_pos, osr::direction::kBackward};
@@ -115,9 +119,10 @@ struct bidir_dijkstra {
       }
       if (op_cost < min_cost) {
         min_cost = op_cost;
+        contr_node = op_node;
       }
     }
-    return min_cost;
+    return std::make_tuple(min_cost, contr_node);
   }
 
   osr::cost_t get_turn_cost(P::parameters const& params, osr::ways::routing const& r, node const& n, 
@@ -251,7 +256,7 @@ struct bidir_dijkstra {
         }
 
         //auto const contrary_cost = get_cost<osr::opposite(PathDir)>(neighbor);
-        auto const contrary_cost = find_opposite<PathDir>(params, neighbor, property.ways_.back(), r);
+        auto const [contrary_cost, contrary_node] = find_opposite<PathDir>(params, neighbor, property.ways_.back(), r);
         auto total = get_cost<PathDir>(neighbor);
         if constexpr (kDebug) {
           std::cout << " CURR_COST: " << total <<  " CONTR_COST: " << contrary_cost << "\n";
@@ -261,7 +266,16 @@ struct bidir_dijkstra {
           if constexpr (kDebug) { 
             std::cout << "=> MEETING POINT: " << neighbor.n_ << " TOTAL COST: " << mu_ <<"\n";
           }
-          meet_point_ = neighbor;
+          utl::verify(neighbor.n_ == contrary_node.n_,
+                      "Expected equality of meetpoint nodes for {} and {}",
+                      neighbor.n_, contrary_node.n_);
+          if (is_fwd) {
+            meet_point_f_ = neighbor;
+            meet_point_b_ = contrary_node;
+          } else {
+            meet_point_f_ = contrary_node;
+            meet_point_b_ = neighbor;
+          }
         }
       }
     } else {
@@ -305,7 +319,7 @@ struct bidir_dijkstra {
           auto contrary_cost = get_cost<osr::opposite(PathDir)>(neighbor);
             if ((contrary_cost != osr::kInfeasible) && total + contrary_cost < mu_) {
               mu_ = total + contrary_cost;
-              meet_point_ = neighbor;
+              meet_point_f_ = neighbor;
               if constexpr (kDebug) { 
                 std::cout << "=> MEETING POINT: " << neighbor.n_ << " TOTAL COST: " << mu_ <<"\n";
               }
@@ -383,7 +397,8 @@ struct bidir_dijkstra {
   osr::cost_t mu_;
   osr::cost_t curr_fw_cost_;
   osr::cost_t curr_bw_cost_;
-  node meet_point_;
+  node meet_point_f_;
+  node meet_point_b_;
   bool max_reached_f_{};
   bool max_reached_b_{};
 };
