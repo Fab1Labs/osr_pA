@@ -71,44 +71,138 @@ routing_algorithm to_algorithm(std::string_view s) {
   throw utl::fail("unknown routing algorithm: {}", s);
 }
 
-// template <Profile P>
-// path reconstruct_cch_bidir(typename P::parameters const& params, 
-//                         ways const& w,
-//                         lookup const& l,
-//                         bitvec<node_idx_t> const* blocked,
-//                         sharing_data const* sharing,
-//                         elevation_storage const* elevations,
-//                         cch::bidir_dijkstra<P> const& b, 
-//                         location const& from,
-//                         location const& to, 
-//                         way_candidate const& start,
-//                         way_candidate const& dest,
-//                         direction const dir) {
-//   auto forward_n = b.meet_point_;
-//   auto forward_segments = std::vector<path::segment>{};
-//   auto forward_dist = 0.0;
+template <Profile P>
+path reconstruct_cch_bidir(typename P::parameters const& params, 
+                        ways const& w,
+                        lookup const& l,
+                        bitvec<node_idx_t> const* blocked,
+                        sharing_data const* sharing,
+                        elevation_storage const* elevations,
+                        cch::bidir_dijkstra<P> const& b, 
+                        location const& from,
+                        location const& to, 
+                        way_candidate const& start,
+                        way_candidate const& dest,
+                        direction const dir) {
+  auto forward_n = b.meet_point_f_;
+  auto forward_segments = std::vector<path::segment>{};
+  auto forward_dist = 0.0;
 
-//   while (true) {
-//     auto const& entry = b.cost_f_.at(forward_n.get_key());
-//     auto const pred = entry.pred(forward_n);
-//     if (pred.has_value()) {
-//       auto const& sc = w.r_->get_shortcut(pred.get_node(), forward_n.get_node());
+  while (true) {
+    auto const& entry = b.cost_f_.at(forward_n.get_key());
+    auto const sc_start_fw = entry.pred(forward_n);
+    if (sc_start_fw.has_value()) {
+      auto const sc_start = std::move(*sc_start_fw);
+      auto const& sc = w.r_->get_shortcut(sc_start.n_, forward_n.n_, true);
 
-//       // add all nodes from the path
-//       for (std::size_t i = (sc.nodes_.size() - 1); i >= 0; --i) {
-//         auto pred = typename P::node{
-//           sc.nodes_[i], w.r_->get_way_pos(sc.nodes_[i], sc.ways_[i]), sc.dirs_[i]
-//         };
-//         auto const exptected_cost = sc.costs_[i];
-//         dist += add_path<P>(params, w, *w.r_, blocked, sharing, elevations, *pred,
-//                             forward_n, expected_cost, forward_segments, dir);
-//       }
-//     } else {
-//       break;
-//     }
-//     forward_n = *pred;
-//   }
-// }
+      // add all nodes from the shortcut path backwards except the target node
+      if (sc.nodes_.size() > 1) {
+        for (std::size_t i = (sc.nodes_.size() - 2); i >= 0; --i) {
+          auto pred = typename P::node{
+              sc.nodes_[i], w.r_->get_way_pos(sc.nodes_[i], sc.ways_[i]), sc.dirs_[i]
+          };
+          forward_dist += add_path<P>(params, w, *w.r_, blocked, sharing, elevations, pred,
+                                    forward_n, sc.costs_[i + 1], forward_segments, dir);
+          forward_n = pred;
+          if (i == 0) { break; }
+        }
+      }
+;
+      forward_dist += add_path<P>(params, w, *w.r_, blocked, sharing, elevations, sc_start,
+                                  forward_n, sc.costs_[0], forward_segments, dir);
+      forward_n = sc_start;
+    } else {
+      break;
+    }
+  }
+
+  auto const& start_node_candidate = 
+      forward_n.get_node() == start.left_.node_ ? start.left_ : start.right_;
+  
+      forward_segments.push_back(
+        {.polyline_ = 
+            l.get_node_candidate_path(start, start_node_candidate, false, from),
+         .from_level_ = start_node_candidate.lvl_,
+         .to_level_ = start_node_candidate.lvl_,
+         .from_ = dir == direction::kBackward ? forward_n.get_node()
+                                              : node_idx_t::invalid(),
+         .to_ = dir == direction::kForward ? forward_n.get_node()
+                                            : node_idx_t::invalid(),
+         .way_ = way_idx_t::invalid(),
+         .cost_ = start_node_candidate.cost_,
+         .dist_ = static_cast<distance_t>(start_node_candidate.dist_to_node_),
+         .mode_ = forward_n.get_mode()});
+  
+  auto backward_segments = std::vector<path::segment>{};
+  auto backward_n = b.meet_point_b_;
+  auto backward_dist = 0.0;
+
+  while (true) {
+    auto const& entry = b.cost_b_.at(backward_n.get_key());
+    auto const sc_start_bw = entry.pred(backward_n);
+
+    if (sc_start_bw.has_value()) {
+      auto const sc_start = std::move(*sc_start_bw);
+      auto const& sc = w.r_->get_shortcut(sc_start.n_, backward_n.n_, false);
+
+      if (sc.nodes_.size() > 1) {
+        for (std::size_t i = (sc.nodes_.size() - 2); i >= 0; --i) {
+          auto pred = typename P::node{
+              sc.nodes_[i], w.r_->get_way_pos(sc.nodes_[i], sc.ways_[i]), sc.dirs_[i]
+          };
+          backward_dist += add_path<P>(params, w, *w.r_, blocked, sharing, elevations, pred,
+                                      backward_n, sc.costs_[i + 1], backward_segments, opposite(dir));
+          backward_n = pred;
+          if (i == 0) { break; }
+        }
+      };
+      backward_dist += add_path<P>(params, w, *w.r_, blocked, sharing, elevations, sc_start,
+                                  backward_n, sc.costs_[0], backward_segments, opposite(dir));
+      backward_n = sc_start;
+    } else {
+      break;
+    }
+  }
+
+  auto const& dest_node_candidate = 
+      backward_n.get_node() == dest.left_.node_ ? dest.left_ : dest.right_;
+  
+  backward_segments.push_back(
+    {.polyline_ = 
+        l.get_node_candidate_path(dest, dest_node_candidate, true, to),
+     .from_level_ = dest_node_candidate.lvl_,
+     .to_level_ = dest_node_candidate.lvl_,
+     .from_ = dir == direction::kForward ? backward_n.get_node()
+                                         : node_idx_t::invalid(),
+     .to_ = dir == direction::kBackward ? backward_n.get_node()
+                                        : node_idx_t::invalid(),
+     .way_ = way_idx_t::invalid(),
+     .cost_ = dest_node_candidate.cost_,
+     .dist_ = static_cast<distance_t>(dest_node_candidate.dist_to_node_),
+     .mode_ = backward_n.get_mode()});
+
+  if (dir == direction::kForward) {
+    std::reverse(forward_segments.begin(), forward_segments.end());
+  } else {
+    std::reverse(backward_segments.begin(), backward_segments.end());
+  }
+  forward_segments.insert(forward_segments.end(), backward_segments.begin(),
+                          backward_segments.end());
+  auto total_dist = start_node_candidate.dist_to_node_ + forward_dist + 
+                    backward_dist + dest_node_candidate.dist_to_node_;
+  
+  auto path_elevation = elevation_storage::elevation{};
+  for (auto const& segment : forward_segments) {
+    path_elevation += segment.elevation_;
+  }
+
+  auto p = path{.cost_ = b.mu_,
+                .dist_ = total_dist,
+                .elevation_ = path_elevation,
+                .segments_ = forward_segments};
+  b.cost_b_.at(backward_n.get_key()).write(backward_n, p);
+  return p;
+}
 
 template <Profile P>
 path reconstruct_bidir(typename P::parameters const& params, 
@@ -752,7 +846,7 @@ std::optional<path> route_cch_bidir_dijkstra(typename P::parameters const& param
       }
 
       //reconstruct the path:
-      return reconstruct_bidir<P>(params, w, l, blocked, sharing, elevations, b, from,
+      return reconstruct_cch_bidir<P>(params, w, l, blocked, sharing, elevations, b, from,
                                   to, start, end, dir);
     }  
   }

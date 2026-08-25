@@ -346,10 +346,11 @@ struct ways {
     }
 
     cch::sc_properties get_shortcut(osr::node_idx_t const& from, 
-        osr::node_idx_t const& to, bool const is_fwd) {
+                                    osr::node_idx_t const& to, 
+                                    bool const is_fwd) const {
       auto const& from_rank = node_importance_[from];
       for (auto [idx, target] : utl::enumerate(sc_targets_[from_rank])) {
-        if (target == from) {
+        if (target == to) {
           return is_fwd ? sc_up_[from_rank][idx] : sc_down_[from_rank][idx];
         }
       }

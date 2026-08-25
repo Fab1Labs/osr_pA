@@ -23,7 +23,7 @@ struct bidir_dijkstra {
   using hash = typename P::hash;
   using cost_map = typename ankerl::unordered_dense::map<key, entry, hash>;
 
-  static constexpr auto const kDebug = false;
+  static constexpr auto const kDebug = true;
   static constexpr auto const kGplus = true; // <- Define to run the bidir dijkstra on normal graph or with shortcuts
 
   struct get_bucket{
@@ -378,10 +378,12 @@ struct bidir_dijkstra {
            osr::elevation_storage const* elevations, 
            osr::direction const dir) {
     if (blocked == nullptr) {
+      if constexpr (kDebug) { std::cout << "run without blocked"; }
       return dir == osr::direction::kForward
                   ? run<osr::direction::kForward, false>(params, w, r, max, blocked, sharing, elevations)
                   : run<osr::direction::kBackward, false>(params, w, r, max, blocked, sharing, elevations);
     } else {
+      if constexpr (kDebug) { std::cout << "run with blocked"; }
       return dir == osr::direction::kForward
                   ? run<osr::direction::kForward, true>(params, w, r, max, blocked, sharing, elevations)
                   : run<osr::direction::kBackward, true>(params, w, r, max, blocked, sharing, elevations);
