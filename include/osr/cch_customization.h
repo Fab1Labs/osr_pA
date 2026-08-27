@@ -66,6 +66,45 @@ struct customization {
                     .way_pos_ = 0};
   }
 
+  template<osr::direction SearchDir, bool WithRestrictions, bool IsBus>
+  bool check_sc_update(std::size_t const& rank,
+                       std::size_t const& t_idx,
+                       std::size_t const& n_idx,
+                       osr::cost_t const& old_cost,
+                       osr::cost_t const& new_cost,
+                       osr::cost_t const& node_to_neighbor_cost,
+                       bool is_up) {
+    if (old_cost <= new_cost || new_cost == osr::kInfeasible) {
+      return false;
+    }
+
+    if (is_up && (r_->sc_costs_up_[rank][t_idx] == osr::kInfeasible ||
+        node_to_neighbor_cost == osr::kInfeasible)) {
+      return false;
+    }
+
+    if (!is_up && (r_->sc_costs_down_[rank][t_idx] == osr::kInfeasible ||
+        node_to_neighbor_cost == osr::kInfeasible)) {
+      return false;
+    }
+
+    // -> via node, idx der node in from way und idx der node in to way
+    if constexpr (WithRestrictions) {
+      auto const& via = r_->contraction_order_[rank];
+      auto const& sc_down = is_up ? r_->sc_down_[rank][n_idx] : r_->sc_down_[rank][t_idx];
+      auto const& sc_up = is_up ? r_->sc_up_[rank][t_idx] : r_->sc_up_[rank][n_idx];
+      utl::verify(via == sc_down.nodes_.back(), 
+                  "Restriction test: Expected {} but got {}", via, sc_down.nodes_.back());
+      if (r_->is_restricted<SearchDir, IsBus>(via, 
+                                   r_->get_way_pos(via, sc_down.ways_.back()), 
+                                   r_->get_way_pos(via, sc_up.ways_.back()))) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   // calculate the existing (direct) edge costs for customization preparation
   template<osr::Profile P>
   void calculate_direct_costs(typename P::parameters const& params) {
@@ -110,9 +149,9 @@ struct customization {
           auto const wc_down = P::way_cost(params, wp, osr::opposite(wd.dir_), dist);
           auto const neighbor_cost = P::node_cost(params, r_->node_properties_[neighbor]);
           auto cost_up = osr::clamp_cost(static_cast<std::uint64_t>(wc_up)) +
-              osr::clamp_cost(static_cast<std::uint64_t>(neighbor_cost));
+                         osr::clamp_cost(static_cast<std::uint64_t>(neighbor_cost));
           auto cost_down = osr::clamp_cost(static_cast<std::uint64_t>(wc_down)) + 
-              osr::clamp_cost(static_cast<std::uint64_t>(node_cost));
+                           osr::clamp_cost(static_cast<std::uint64_t>(node_cost));
 
           if (wc_up == osr::kInfeasible || neighbor_cost == osr::kInfeasible) {
             cost_up = osr::kInfeasible;
@@ -149,6 +188,7 @@ struct customization {
     return targets.size();
   }
 
+  template<bool WithRestrictions, bool isBus>
   void basic_customization() {
     for (std::uint32_t rank = 0; rank < r_->contraction_order_.size(); ++rank) {
       utl::verify(r_->node_importance_.size() == r_->contraction_order_.size(), 
@@ -173,10 +213,14 @@ struct customization {
           }
           auto const& old_cost_up = r_->sc_costs_up_[neighbor_rank][t_in_n_idx];
           auto const new_cost_up = node_to_neighbor_cost_down + r_->sc_costs_up_[rank][t_idx];
-          if (new_cost_up < old_cost_up &&
-              new_cost_up != osr::kInfeasible &&
-              r_->sc_costs_up_[rank][t_idx] != osr::kInfeasible &&
-              node_to_neighbor_cost_down != osr::kInfeasible) {
+          // utl::verify((new_cost_up < old_cost_up && 
+          //              new_cost_up != osr::kInfeasible && 
+          //              r_->sc_costs_up_[rank][t_idx] != osr::kInfeasible &&
+          //              node_to_neighbor_cost_down != osr::kInfeasible) == (
+          //             check_sc_update<WithRestrictions, isBus>(rank, t_idx, old_cost_up, new_cost_up, node_to_neighbor_cost_down, true)),
+          //             "Shortcut update condition is different! (up)");
+          if (check_sc_update<osr::direction::kForward, WithRestrictions, isBus>(
+                  rank, t_idx, n_idx, old_cost_up, new_cost_up,  node_to_neighbor_cost_down, true)) {
             r_->sc_costs_up_[neighbor_rank][t_in_n_idx] = new_cost_up;
             auto new_sc_up = r_->sc_down_[rank][n_idx];
             new_sc_up.append(r_->sc_up_[rank][t_idx]);
@@ -191,10 +235,14 @@ struct customization {
 
           auto const& old_cost_down = r_->sc_costs_down_[neighbor_rank][t_in_n_idx];
           auto const new_cost_down = node_to_neighbor_cost_up + r_->sc_costs_down_[rank][t_idx];
-          if (new_cost_down < old_cost_down &&
-              new_cost_down != osr::kInfeasible &&
-              r_->sc_costs_down_[rank][t_idx] != osr::kInfeasible &&
-              node_to_neighbor_cost_up != osr::kInfeasible) {
+          // utl::verify((new_cost_down < old_cost_down &&
+          //              new_cost_down != osr::kInfeasible &&
+          //              r_->sc_costs_down_[rank][t_idx] != osr::kInfeasible &&
+          //              node_to_neighbor_cost_up != osr::kInfeasible) ==
+          //             check_sc_update<WithRestrictions, isBus>(rank, t_idx, old_cost_down, new_cost_down, node_to_neighbor_cost_up, false),
+          //             "Shortcut update condition is different! (down)");
+          if (check_sc_update<osr::direction::kBackward, WithRestrictions, isBus>(
+                  rank, t_idx, n_idx, old_cost_down, new_cost_down, node_to_neighbor_cost_up, false)) {
             r_->sc_costs_down_[neighbor_rank][t_in_n_idx] = new_cost_down;
             auto new_sc_down = r_->sc_down_[rank][t_idx];
             new_sc_down.append(r_->sc_up_[rank][n_idx]);

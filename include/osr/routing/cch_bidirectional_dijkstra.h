@@ -94,6 +94,14 @@ struct bidir_dijkstra {
   }
 
   template <osr::direction PathDir>
+  bool check_restrictions(osr::ways::routing const& r, 
+                          node const& curr, 
+                          std::uint16_t const& next_way_pos) {
+    return r.is_restricted<PathDir, false>(
+            curr.n_, curr.way_, next_way_pos);
+  }
+
+  template <osr::direction PathDir>
   std::tuple<osr::cost_t, node> find_opposite(P::parameters const& params, node const n, 
                      osr::way_idx_t const way, osr::ways::routing const& r) {
     auto const ways = r.node_ways_[n.n_];
@@ -101,10 +109,15 @@ struct bidir_dijkstra {
     auto contr_node = P::node::invalid();
     for (auto w : ways) {
       auto const way_pos = r.get_way_pos(n.n_, w);
-
       auto op_node = node{n.n_, way_pos, osr::direction::kForward};
+      if (check_restrictions<PathDir>(r, n, way_pos)) {
+        continue;
+      }
+
       auto op_cost = get_cost<osr::opposite(PathDir)>(op_node);
-      if (op_cost != osr::kInfeasible && w == way && n.dir_ == osr::direction::kBackward) {
+      if (op_cost != osr::kInfeasible && 
+          w == way && 
+          n.dir_ == osr::direction::kBackward) {
         op_cost += params.uturn_penalty_;
       }
       if (op_cost < min_cost) {
@@ -114,7 +127,10 @@ struct bidir_dijkstra {
 
       op_node = node{n.n_, way_pos, osr::direction::kBackward};
       op_cost = get_cost<osr::opposite(PathDir)>(op_node);
-      if (op_cost != osr::kInfeasible && w == way && n.dir_ == osr::direction::kForward) {
+      if (op_cost != osr::kInfeasible && 
+          w == way && 
+          n.dir_ == osr::direction::kForward &&
+          check_restrictions<PathDir>(r, n, way_pos)) {
         op_cost += params.uturn_penalty_;
       }
       if (op_cost < min_cost) {
@@ -177,12 +193,15 @@ struct bidir_dijkstra {
 
       // add all shortcuts to the queue:
       for (auto [target, cost, property] : utl::zip(targets, sc_costs, sc_properties)) {
-        if (cost == osr::kInfeasible || r.node_importance_[target] < curr_importance) {
-          if (kDebug && cost == osr::kInfeasible) {
-            std::cout << "REJECTED: " << target << " with COST: " << cost << "\n";
+        if (cost == osr::kInfeasible) {
+          if constexpr (kDebug) {
+            std::cout << "  REJECTED: " << target <<  " with infeasible cost\n";
           }
-          if (kDebug && r.node_importance_[target] < curr_importance) {
-            std::cout << "REJECTED: " << target << " with lower importance than EXTRACTED\n";
+          continue;
+        }
+        if (check_restrictions<PathDir>(r, curr, r.get_way_pos(curr.n_, property.ways_[0]))) {
+          if constexpr (kDebug) {
+            std::cout << "  REJECTED: " << target << " with restriction\n";
           }
           continue;
         }
@@ -220,7 +239,7 @@ struct bidir_dijkstra {
                 node, r.get_way_pos(node, property.ways_[idx]), property.dirs_[idx]
             };
             if (node == property.nodes_.back()) {
-              std::cout << "NEIGHBOR ";
+              std::cout << "  NEIGHBOR ";
             } else {
               std::cout << "  -> ";
             }
@@ -347,7 +366,7 @@ struct bidir_dijkstra {
       }
 
       if (!pq_b_.empty() && 
-          !run_single<osr::opposite(SearchDir), WithBlocked, osr::direction::kBackward>(
+          !run_single<SearchDir, WithBlocked, osr::direction::kBackward>(
               params, w, r, max, blocked, sharing, elevations, pq_b_, cost_b_)) {
         break;
       }
@@ -378,12 +397,10 @@ struct bidir_dijkstra {
            osr::elevation_storage const* elevations, 
            osr::direction const dir) {
     if (blocked == nullptr) {
-      if constexpr (kDebug) { std::cout << "run without blocked"; }
       return dir == osr::direction::kForward
                   ? run<osr::direction::kForward, false>(params, w, r, max, blocked, sharing, elevations)
                   : run<osr::direction::kBackward, false>(params, w, r, max, blocked, sharing, elevations);
     } else {
-      if constexpr (kDebug) { std::cout << "run with blocked"; }
       return dir == osr::direction::kForward
                   ? run<osr::direction::kForward, true>(params, w, r, max, blocked, sharing, elevations)
                   : run<osr::direction::kBackward, true>(params, w, r, max, blocked, sharing, elevations);

@@ -722,7 +722,7 @@ void extract(bool const with_platforms,
   auto customization = cch::customization{w.r_};
   customization.calculate_direct_costs(profile, params);
   pt->status("CCH Customization").in_high(w.n_ways()).out_bounds(98, 99);
-  customization.basic_customization();
+  customization.basic_customization<true, false>();
   customization.transform_downward_paths();
   customization.check_shortcut_correctness(w);
   w.r_->write(out);
