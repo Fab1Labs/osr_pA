@@ -23,7 +23,7 @@ struct bidir_dijkstra {
   using hash = typename P::hash;
   using cost_map = typename ankerl::unordered_dense::map<key, entry, hash>;
 
-  static constexpr auto const kDebug = true;
+  static constexpr auto const kDebug = false;
   static constexpr auto const kGplus = true; // <- Define to run the bidir dijkstra on normal graph or with shortcuts
 
   struct get_bucket{
@@ -109,11 +109,10 @@ struct bidir_dijkstra {
     auto contr_node = P::node::invalid();
     for (auto w : ways) {
       auto const way_pos = r.get_way_pos(n.n_, w);
-      auto op_node = node{n.n_, way_pos, osr::direction::kForward};
       if (check_restrictions<PathDir>(r, n, way_pos)) {
         continue;
       }
-
+      auto op_node = node{n.n_, way_pos, osr::direction::kForward};
       auto op_cost = get_cost<osr::opposite(PathDir)>(op_node);
       if (op_cost != osr::kInfeasible && 
           w == way && 
@@ -129,8 +128,7 @@ struct bidir_dijkstra {
       op_cost = get_cost<osr::opposite(PathDir)>(op_node);
       if (op_cost != osr::kInfeasible && 
           w == way && 
-          n.dir_ == osr::direction::kForward &&
-          check_restrictions<PathDir>(r, n, way_pos)) {
+          n.dir_ == osr::direction::kForward) {
         op_cost += params.uturn_penalty_;
       }
       if (op_cost < min_cost) {
@@ -139,14 +137,6 @@ struct bidir_dijkstra {
       }
     }
     return std::make_tuple(min_cost, contr_node);
-  }
-
-  osr::cost_t get_turn_cost(P::parameters const& params, osr::ways::routing const& r, node const& n, 
-                            osr::shortcut_idx_t const& sc) {
-    auto const& sc_info = r.in_shortcut_[sc];
-    auto const to_way_pos = r.get_way_pos(n.n_, sc_info.way_);
-    auto const turn_angle = r.get_turn_angle(n.n_, n.way_, n.dir_, to_way_pos, sc_info.dir_);
-    return P::turn_cost(params, turn_angle);
   }
 
   template <osr::direction SearchDir, bool WithBlocked, osr::direction PathDir>
@@ -172,6 +162,11 @@ struct bidir_dijkstra {
     }
 
     if (get_cost<PathDir>(l.get_node()) < l.cost()) {
+      if constexpr (kDebug) {
+        is_fwd ? std::cout << "RETURN (fw) " : std::cout << "RETURN (bw) ";
+        curr.print(std::cout, w);
+        std::cout << "\n";
+      }
       return PathDir == osr::direction::kForward ? !max_reached_f_ : !max_reached_b_;
     }
 
@@ -180,6 +175,7 @@ struct bidir_dijkstra {
       l.get_node().print(std::cout, w);
       std::cout << " Importance: " << r.node_importance_[l.get_node().n_];
       std::cout << " COST: " << get_cost<PathDir>(l.get_node());
+      std::cout << " PQ SIZE: " << pq.size();
       std::cout << "\n";
     }
 
@@ -267,6 +263,7 @@ struct bidir_dijkstra {
 
           if constexpr (kDebug) {
             is_fwd ? std::cout << " -> PUSH (fw)" : std::cout << " -> PUSH (bw)";
+            std::cout << " PQ SIZE: " << pq.size();
           }
         } else {
           if constexpr (kDebug) {

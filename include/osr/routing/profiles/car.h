@@ -105,7 +105,7 @@ struct generic_car {
   };
 
   struct entry {
-    static constexpr auto const kMaxWays = way_pos_t{16U}; // 16 before
+    static constexpr auto const kMaxWays = way_pos_t{16U};
     static constexpr auto const kN = kMaxWays * 2U /* FWD+BWD */;
 
     entry() { utl::fill(cost_, kInfeasible); }
