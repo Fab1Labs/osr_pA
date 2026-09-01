@@ -32,7 +32,7 @@ namespace fs = std::filesystem;
 using namespace osr;
 
 constexpr auto const kUseMultithreading = true;
-constexpr auto const kPrintDebugGeojson = false;
+constexpr auto const kPrintDebugGeojson = true;
 constexpr auto const kMaxMatchDistance = 100;
 constexpr auto const kMaxAllowedPathDifferenceRatio = 0.5;
 
@@ -120,7 +120,7 @@ void run(ways const& w,
                      to_loc, from_matches_span, to_matches_span, max_cost, dir,
                      nullptr, nullptr, nullptr, routing_algorithm::kBidirDijkstra);
       } catch (std::exception const& ex) {
-        fmt::println("cch bidir exception: {}", ex.what());
+        fmt::println("cch bidir exception: {}, on route {} -> {}", ex.what(), w.node_to_osm_[from_node], w.node_to_osm_[to_node]);
         throw ex;
       }
     }();

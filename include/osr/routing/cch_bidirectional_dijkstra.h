@@ -23,7 +23,7 @@ struct bidir_dijkstra {
   using hash = typename P::hash;
   using cost_map = typename ankerl::unordered_dense::map<key, entry, hash>;
 
-  static constexpr auto const kDebug = false;
+  static constexpr auto const kDebug = true;
   static constexpr auto const kGplus = true; // <- Define to run the bidir dijkstra on normal graph or with shortcuts
 
   struct get_bucket{
@@ -102,8 +102,9 @@ struct bidir_dijkstra {
   }
 
   template <osr::direction PathDir>
-  std::tuple<osr::cost_t, node> find_opposite(P::parameters const& params, node const n, 
-                     osr::way_idx_t const way, osr::ways::routing const& r) {
+  std::tuple<osr::cost_t, node> find_opposite(P::parameters const& params, 
+                                              node const n,
+                                              osr::ways::routing const& r) {
     auto const ways = r.node_ways_[n.n_];
     auto min_cost = osr::kInfeasible;
     auto contr_node = P::node::invalid();
@@ -115,7 +116,7 @@ struct bidir_dijkstra {
       auto op_node = node{n.n_, way_pos, osr::direction::kForward};
       auto op_cost = get_cost<osr::opposite(PathDir)>(op_node);
       if (op_cost != osr::kInfeasible && 
-          w == way && 
+          way_pos == n.way_ && 
           n.dir_ == osr::direction::kBackward) {
         op_cost += params.uturn_penalty_;
       }
@@ -127,7 +128,7 @@ struct bidir_dijkstra {
       op_node = node{n.n_, way_pos, osr::direction::kBackward};
       op_cost = get_cost<osr::opposite(PathDir)>(op_node);
       if (op_cost != osr::kInfeasible && 
-          w == way && 
+          way_pos == n.way_ && 
           n.dir_ == osr::direction::kForward) {
         op_cost += params.uturn_penalty_;
       }
@@ -165,7 +166,7 @@ struct bidir_dijkstra {
       if constexpr (kDebug) {
         is_fwd ? std::cout << "RETURN (fw) " : std::cout << "RETURN (bw) ";
         curr.print(std::cout, w);
-        std::cout << "\n";
+        std::cout << " Expected " << get_cost<PathDir>(l.get_node()) << " but got " << l.cost() << "\n";
       }
       return PathDir == osr::direction::kForward ? !max_reached_f_ : !max_reached_b_;
     }
@@ -241,7 +242,11 @@ struct bidir_dijkstra {
             }
             path_node.print(std::cout, w);
             std::cout << " IMPORTANCE: " << r.node_importance_[node];
-            std::cout << " COST: " << path_cost;
+            if (node == property.nodes_.back()) {
+              std::cout << " COST: " << neighbor_cost;
+            } else {
+              std::cout << " COST: " << path_cost;
+            }
             std::cout << " WAY: " << property.ways_[idx];
 
             if (node != property.nodes_.back()) {
@@ -263,37 +268,37 @@ struct bidir_dijkstra {
 
           if constexpr (kDebug) {
             is_fwd ? std::cout << " -> PUSH (fw)" : std::cout << " -> PUSH (bw)";
-            std::cout << " PQ SIZE: " << pq.size();
+            std::cout << " PQ SIZE: " << pq.size() << "\n";
           }
         } else {
           if constexpr (kDebug) {
-            is_fwd ? std::cout << " -> DOMINATED (fw)" : std::cout << " -> DOMINATED (bw)";
+            is_fwd ? std::cout << " -> DOMINATED (fw)\n" : std::cout << " -> DOMINATED (bw)\n";
           }
         }
+      }
 
         //auto const contrary_cost = get_cost<osr::opposite(PathDir)>(neighbor);
-        auto const [contrary_cost, contrary_node] = find_opposite<PathDir>(params, neighbor, property.ways_.back(), r);
-        auto total = get_cost<PathDir>(neighbor);
+        auto const [contrary_cost, contrary_node] = find_opposite<PathDir>(params, curr, r);
+        auto total = get_cost<PathDir>(curr);
         if constexpr (kDebug) {
           std::cout << " CURR_COST: " << total <<  " CONTR_COST: " << contrary_cost << "\n";
         }
         if ((contrary_cost != osr::kInfeasible) && ((total + contrary_cost) < mu_)) {
           mu_ = total + contrary_cost;
           if constexpr (kDebug) { 
-            std::cout << "=> MEETING POINT: " << neighbor.n_ << " TOTAL COST: " << mu_ <<"\n";
+            std::cout << "=> MEETING POINT: " << curr.n_ << " TOTAL COST: " << mu_ <<"\n";
           }
-          utl::verify(neighbor.n_ == contrary_node.n_,
+          utl::verify(curr.n_ == contrary_node.n_,
                       "Expected equality of meetpoint nodes for {} and {}",
-                      neighbor.n_, contrary_node.n_);
+                      curr.n_, contrary_node.n_);
           if (is_fwd) {
-            meet_point_f_ = neighbor;
+            meet_point_f_ = curr;
             meet_point_b_ = contrary_node;
           } else {
             meet_point_f_ = contrary_node;
-            meet_point_b_ = neighbor;
+            meet_point_b_ = curr;
           }
         }
-      }
     } else {
       P::template adjacent<SearchDir, WithBlocked>( // lasse die adjacent drin, wegen optionaler feature flag
         params, r, curr, blocked, sharing, elevations,
