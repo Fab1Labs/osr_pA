@@ -619,6 +619,6 @@ TEST(extract, find_way) {
   auto customization = cch::customization(w.r_);
 
   auto const way_data = customization.find_way(osr::node_idx_t{222}, osr::node_idx_t{188});
-  std::cout << "\nResults: " << way_data.way_ << " " << way_data.dir_ << " " << way_data.way_pos_;
+  std::cout << "\nResults: " << way_data.way_ << " " << way_data.dir_ << " " << way_data.node_in_way_idx_;
   ASSERT_EQ(way_data.way_, osr::way_idx_t{135});
 }

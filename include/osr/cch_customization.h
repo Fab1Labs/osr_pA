@@ -67,7 +67,7 @@ struct customization {
   struct way_data {
     osr::way_idx_t way_;
     osr::direction dir_;
-    std::uint16_t way_pos_;
+    std::uint16_t node_in_way_idx_;
   };
 
   customization(cista::wrapped<osr::ways::routing>& r)
@@ -92,7 +92,7 @@ struct customization {
     if (in_ways.empty() && in_way_idx.empty()) {
       return way_data{.way_ = osr::way_idx_t::invalid(), 
                       .dir_ = osr::direction::kBackward, 
-                      .way_pos_ = 0};
+                      .node_in_way_idx_ = 0};
     }
     for (auto const [idx, way] : utl::zip(in_way_idx, in_ways)) {
       auto const& wp = r_->way_properties_[way];
@@ -100,17 +100,17 @@ struct customization {
       if (idx > 0 && r_->way_nodes_[way][idx - 1] == to) {
         return way_data{.way_ = way, 
                         .dir_ = osr::direction::kBackward, 
-                        .way_pos_ = static_cast<std::uint16_t>(idx - 1)};
+                        .node_in_way_idx_ = static_cast<std::uint16_t>(idx - 1)};
       }
       if (idx < (r_->way_nodes_[way].size() - 1) && r_->way_nodes_[way][idx + 1] == to) {
         return way_data{.way_ = way, 
                         .dir_ = osr::direction::kForward, 
-                        .way_pos_ = static_cast<std::uint16_t>(idx)};
+                        .node_in_way_idx_ = static_cast<std::uint16_t>(idx)};
       }
     }
     return way_data{.way_ = osr::way_idx_t::invalid(), 
                     .dir_ = osr::direction::kForward, 
-                    .way_pos_ = 0};
+                    .node_in_way_idx_ = 0};
   }
 
   template<bool WithRestrictions, bool IsBus>
@@ -141,10 +141,10 @@ struct customization {
       auto const& sc_down = is_up ? r_->sc_down_[rank][n_idx] : r_->sc_down_[rank][t_idx];
       auto const& sc_up = is_up ? r_->sc_up_[rank][t_idx] : r_->sc_up_[rank][n_idx];
       utl::verify(via == sc_down.nodes_.back(), 
-                  "Restriction test: Expected {} but got {}", via, sc_down.nodes_.back());
+                  "Restriction test (dw): Expected {} but got {}", via, sc_down.nodes_.back());
       if (r_->is_restricted<osr::direction::kForward, IsBus>(via, 
                                    r_->get_way_pos(via, sc_down.ways_.back()), 
-                                   r_->get_way_pos(via, sc_up.ways_.back()))) {
+                                   r_->get_way_pos(via, sc_up.ways_[0]))) {
         return false;
       }
     }
@@ -160,9 +160,7 @@ struct customization {
     r_->sc_costs_down_.resize(size);
     r_->sc_up_.resize(size);
     r_->sc_down_.resize(size);
-    utl::verify(r_->contraction_order_.size() == r_->sc_targets_.size(), 
-                "Risk of Segmentation Fault! Contraction order ({}) is not same size as neighborhood ({})",
-                r_->contraction_order_.size(), r_->sc_targets_.size());
+
     for (auto [rank, n] : utl::enumerate(r_->sc_targets_)) {
       if (n.empty()) { continue; }
       auto const& node = r_->contraction_order_[rank];
@@ -175,52 +173,72 @@ struct customization {
                   "Risk of Segmentation Fault! Neighborhood size: {}, sc up size: {}",
                   n.size(), r_->sc_costs_up_[rank].size());
 
+      if (node_cost == osr::kInfeasible) {
+        for (auto const [idx, neighbor] : utl::enumerate(n)) {
+          r_->sc_costs_up_[rank][idx] = osr::kInfeasible;
+          r_->sc_up_[rank][idx] = sc_properties::invalid(neighbor);
+
+          r_->sc_costs_down_[rank][idx] = osr::kInfeasible;
+          r_->sc_down_[rank][idx] = sc_properties::invalid(node);
+        }
+        continue;
+      }
+
       for (auto const [idx, neighbor] : utl::enumerate(n)) {
         utl::verify(r_->node_importance_[node] < r_->node_importance_[neighbor], 
-            "Invalid Shortcut: Node {} -> Neighbor {}", r_->node_importance_[node], r_->node_importance_[neighbor]);
+            "Invalid Shortcut: Node {} -> Neighbor {}", 
+            r_->node_importance_[node], r_->node_importance_[neighbor]);
         auto const wd = find_way(node, neighbor);
         if (wd.way_ == osr::way_idx_t::invalid()) {
           r_->sc_costs_up_[rank][idx] = osr::kInfeasible;
+          r_->sc_up_[rank][idx] = sc_properties::invalid(neighbor);
+
           r_->sc_costs_down_[rank][idx] = osr::kInfeasible;
-
-          r_->sc_up_[rank][idx] = sc_properties{.nodes_ = {}, .ways_ = {}, .dirs_ = {}, .costs_ = {}};
-          r_->sc_up_[rank][idx].add(neighbor, wd.way_, wd.dir_, osr::kInfeasible);
-
-          r_->sc_down_[rank][idx] = sc_properties{.nodes_ = {}, .ways_ = {}, .dirs_ = {}, .costs_ = {}};
-          r_->sc_down_[rank][idx].add(node, wd.way_, osr::opposite(wd.dir_), osr::kInfeasible);
+          r_->sc_down_[rank][idx] = sc_properties::invalid(node);
         } else {
           auto const& wp = r_->way_properties_[wd.way_];
-          auto const dist = r_->get_way_node_distance(wd.way_, wd.way_pos_);
+          auto const dist = r_->get_way_node_distance(wd.way_, wd.node_in_way_idx_);
 
-          auto const wc_up = P::way_cost(params, wp, wd.dir_, dist);
-          auto const wc_down = P::way_cost(params, wp, osr::opposite(wd.dir_), dist);
-          auto const neighbor_cost = P::node_cost(params, r_->node_properties_[neighbor]);
-          auto cost_up = osr::clamp_cost(static_cast<std::uint64_t>(wc_up)) +
-                         osr::clamp_cost(static_cast<std::uint64_t>(neighbor_cost));
-          auto cost_down = osr::clamp_cost(static_cast<std::uint64_t>(wc_down)) + 
-                           osr::clamp_cost(static_cast<std::uint64_t>(node_cost));
+          if (P::way_cost(params, wp, wd.dir_, 0U) != osr::kInfeasible) {
+            auto const wc_up = P::way_cost(params, wp, wd.dir_, dist);
+            auto const neighbor_cost = P::node_cost(params, r_->node_properties_[neighbor]);
+            auto cost_up = osr::clamp_cost(static_cast<std::uint64_t>(wc_up)) +
+                           osr::clamp_cost(static_cast<std::uint64_t>(neighbor_cost));
+            if (wc_up == osr::kInfeasible || neighbor_cost == osr::kInfeasible) {
+              cost_up = osr::kInfeasible;
+            }
 
-          if (wc_up == osr::kInfeasible || neighbor_cost == osr::kInfeasible) {
-            cost_up = osr::kInfeasible;
+            r_->sc_costs_up_[rank][idx] = cost_up;
+            r_->sc_up_[rank][idx] = sc_properties{.nodes_ = {}, .ways_ = {}, .dirs_ = {}, .costs_ = {}};
+            r_->sc_up_[rank][idx].add(neighbor, wd.way_, wd.dir_, cost_up);
+
+            utl::verify(r_->sc_up_[rank][idx].nodes_.back() == neighbor &&
+                        r_->sc_up_[rank][idx].get_path_cost() == cost_up,
+                        "Upward Edge is not initialized correctly.");
+          } else {
+            r_->sc_costs_up_[rank][idx] = osr::kInfeasible;
+            r_->sc_up_[rank][idx] = sc_properties::invalid(neighbor);
           }
-          if (wc_down == osr::kInfeasible || node_cost == osr::kInfeasible) {
-            cost_down = osr::kInfeasible;
-          }     
-          r_->sc_costs_up_[rank][idx] = cost_up;
-          r_->sc_costs_down_[rank][idx] = cost_down;
 
-          r_->sc_up_[rank][idx] = sc_properties{.nodes_ = {}, .ways_ = {}, .dirs_ = {}, .costs_ = {}};
-          r_->sc_up_[rank][idx].add(neighbor, wd.way_, wd.dir_, cost_up);
+          if (P::way_cost(params, wp, osr::opposite(wd.dir_), 0U) != osr::kInfeasible) {
+            auto const wc_down = P::way_cost(params, wp, osr::opposite(wd.dir_), dist);
+            auto cost_down = osr::clamp_cost(static_cast<std::uint64_t>(wc_down)) + 
+                           osr::clamp_cost(static_cast<std::uint64_t>(node_cost));
+            if (wc_down == osr::kInfeasible || node_cost == osr::kInfeasible) {
+              cost_down = osr::kInfeasible;
+            }
 
-          r_->sc_down_[rank][idx] = sc_properties{.nodes_ = {}, .ways_ = {}, .dirs_ = {}, .costs_ = {}};
-          r_->sc_down_[rank][idx].add(node, wd.way_, osr::opposite(wd.dir_), cost_down);
+            r_->sc_costs_down_[rank][idx] = cost_down;
+            r_->sc_down_[rank][idx] = sc_properties{.nodes_ = {}, .ways_ = {}, .dirs_ = {}, .costs_ = {}};
+            r_->sc_down_[rank][idx].add(node, wd.way_, osr::opposite(wd.dir_), cost_down);
 
-          utl::verify(r_->sc_down_[rank][idx].nodes_.back() == node && 
-                      r_->sc_down_[rank][idx].get_path_cost() == cost_down,
-                      "Downward Edge is not initialized correctly.");
-          utl::verify(r_->sc_up_[rank][idx].nodes_.back() == neighbor &&
-                      r_->sc_up_[rank][idx].get_path_cost() == cost_up,
-                      "Upward Edge is not initialized correctly.");
+            utl::verify(r_->sc_down_[rank][idx].nodes_.back() == node && 
+                        r_->sc_down_[rank][idx].get_path_cost() == cost_down,
+                        "Downward Edge is not initialized correctly.");
+          } else {
+            r_->sc_costs_down_[rank][idx] = osr::kInfeasible;
+            r_->sc_down_[rank][idx] = sc_properties::invalid(node);
+          }
         }
       }
     }
@@ -260,14 +278,8 @@ struct customization {
           }
           auto const& old_cost_up = r_->sc_costs_up_[neighbor_rank][t_in_n_idx];
           auto const new_cost_up = node_to_neighbor_cost_down + r_->sc_costs_up_[rank][t_idx];
-          // utl::verify((new_cost_up < old_cost_up && 
-          //              new_cost_up != osr::kInfeasible && 
-          //              r_->sc_costs_up_[rank][t_idx] != osr::kInfeasible &&
-          //              node_to_neighbor_cost_down != osr::kInfeasible) == (
-          //             check_sc_update<WithRestrictions, isBus>(rank, t_idx, old_cost_up, new_cost_up, node_to_neighbor_cost_down, true)),
-          //             "Shortcut update condition is different! (up)");
           if (check_sc_update<WithRestrictions, isBus>(
-                  rank, t_idx, n_idx, old_cost_up, new_cost_up,  node_to_neighbor_cost_down, true)) {
+                  rank, t_idx, n_idx, old_cost_up, new_cost_up, node_to_neighbor_cost_down, true)) {
             r_->sc_costs_up_[neighbor_rank][t_in_n_idx] = new_cost_up;
             auto new_sc_up = r_->sc_down_[rank][n_idx];
             new_sc_up.append(r_->sc_up_[rank][t_idx]);
@@ -282,12 +294,6 @@ struct customization {
 
           auto const& old_cost_down = r_->sc_costs_down_[neighbor_rank][t_in_n_idx];
           auto const new_cost_down = node_to_neighbor_cost_up + r_->sc_costs_down_[rank][t_idx];
-          // utl::verify((new_cost_down < old_cost_down &&
-          //              new_cost_down != osr::kInfeasible &&
-          //              r_->sc_costs_down_[rank][t_idx] != osr::kInfeasible &&
-          //              node_to_neighbor_cost_up != osr::kInfeasible) ==
-          //             check_sc_update<WithRestrictions, isBus>(rank, t_idx, old_cost_down, new_cost_down, node_to_neighbor_cost_up, false),
-          //             "Shortcut update condition is different! (down)");
           if (check_sc_update<WithRestrictions, isBus>(
                   rank, t_idx, n_idx, old_cost_down, new_cost_down, node_to_neighbor_cost_up, false)) {
             r_->sc_costs_down_[neighbor_rank][t_in_n_idx] = new_cost_down;

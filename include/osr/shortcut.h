@@ -32,6 +32,14 @@ struct shortcut_nav_infos {
 
 
 struct sc_properties{
+  static constexpr sc_properties invalid(osr::node_idx_t const& n) noexcept {
+    auto sc = sc_properties{.nodes_ = {}, .ways_ = {}, .dirs_ = {}, .costs_ = {}};
+    sc.add(n, 
+           osr::way_idx_t::invalid(), 
+           osr::direction::kForward, 
+           osr::kInfeasible);
+    return sc;  
+  }
 
   void add(osr::node_idx_t const n,
               osr::way_idx_t const w,
