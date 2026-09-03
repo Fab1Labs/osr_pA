@@ -722,10 +722,32 @@ void extract(bool const with_platforms,
   auto customization = cch::customization{w.r_};
   customization.calculate_direct_costs(profile, params);
   pt->status("CCH Customization").in_high(w.n_ways()).out_bounds(98, 99);
-  customization.basic_customization<true, false>();
+  customization.basic_customization<true, false>(profile, params);
   customization.transform_downward_paths();
   customization.check_shortcut_correctness(w);
   w.r_->write(out);
+
+  if (w.r_->contraction_order_.size() > 15270) {
+    std::cout << "Shortcut {380759965 -> 13332208}\n";
+    auto const& sc_up = w.r_->sc_up_[15266][3];
+    auto const& sc_down = w.r_->sc_down_[15266][3];
+
+    std::cout << "UP:\n";
+
+    for (auto [idx, node] : utl::enumerate(sc_up.nodes_)) {
+      std::cout << "(node=" << node << 
+                   ", way=" << sc_up.ways_[idx] << 
+                   ", dir=" << to_str(sc_up.dirs_[idx]) << ")";
+    }
+
+    std::cout << "DOWN:\n";
+
+    for (auto [idx, node] : utl::enumerate(sc_down.nodes_)) {
+      std::cout << "(node=" << node << 
+                   ", way=" << sc_down.ways_[idx] << 
+                   ", dir=" << to_str(sc_down.dirs_[idx]) << ")";
+    }
+  }
 
   pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
   lookup{w, out, cista::mmap::protection::WRITE}.build_rtree();

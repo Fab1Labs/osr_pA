@@ -76,13 +76,15 @@ struct sc_properties{
     nodes_.push_back(t);
   }
 
-  void append(sc_properties& other) {
+  void append(sc_properties& other, osr::cost_t const& u_turn_penalty) {
     utl::verify(valid_ && other.valid_, "[SC APPEND] Tried to concatenate invalid shortcuts.");
 
+    auto const size = costs_.size();
     nodes_.insert(nodes_.end(), other.nodes_.begin(), other.nodes_.end());
     ways_.insert(ways_.end(), other.ways_.begin(), other.ways_.end());
     dirs_.insert(dirs_.end(), other.dirs_.begin(), other.dirs_.end());
     costs_.insert(costs_.end(), other.costs_.begin(),other.costs_.end());
+    costs_[size] += u_turn_penalty;
     auto max_it = std::max_element(costs_.begin(), costs_.end());
     valid_ = (max_it != costs_.end()) && (*max_it != osr::kInfeasible);
     utl::verify(nodes_.size() == ways_.size() &&

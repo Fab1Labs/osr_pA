@@ -345,13 +345,13 @@ struct ways {
                                  node_turn_bearings_[n][to], to_dir);
     }
 
+    template<bool IsUp>
     cch::sc_properties get_shortcut(osr::node_idx_t const& from, 
-                                    osr::node_idx_t const& to, 
-                                    bool const is_fwd) const {
+                                    osr::node_idx_t const& to) const {
       auto const& from_rank = node_importance_[from];
       for (auto [idx, target] : utl::enumerate(sc_targets_[from_rank])) {
         if (target == to) {
-          return is_fwd ? sc_up_[from_rank][idx] : sc_down_[from_rank][idx];
+          return IsUp ? sc_up_[from_rank][idx] : sc_down_[from_rank][idx];
         }
       }
       throw utl::fail("The given node {} has no shortcut to target {}", 

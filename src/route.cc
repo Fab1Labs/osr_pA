@@ -93,8 +93,12 @@ path reconstruct_cch_bidir(typename P::parameters const& params,
     auto const sc_start_fw = entry.pred(forward_n);
     if (sc_start_fw.has_value()) {
       auto const sc_start = std::move(*sc_start_fw);
-      auto const& sc = w.r_->get_shortcut(sc_start.n_, forward_n.n_, true);
-
+      auto const& sc = w.r_->get_shortcut<true>(sc_start.n_, forward_n.n_);
+      // std::cout << "(FW)";
+      // forward_n.print(std::cout, w);
+      // std::cout << " <- \n";
+      // sc_start.print(std::cout, w);
+      // std::cout << "\n";
       // add all nodes from the shortcut path backwards except the target node
       if (sc.nodes_.size() > 1) {
         for (std::size_t i = (sc.nodes_.size() - 2); i >= 0; --i) {
@@ -107,7 +111,7 @@ path reconstruct_cch_bidir(typename P::parameters const& params,
           if (i == 0) { break; }
         }
       }
-;
+
       forward_dist += add_path<P>(params, w, *w.r_, blocked, sharing, elevations, sc_start,
                                   forward_n, sc.costs_[0], forward_segments, dir);
       forward_n = sc_start;
@@ -143,8 +147,12 @@ path reconstruct_cch_bidir(typename P::parameters const& params,
 
     if (sc_start_bw.has_value()) {
       auto const sc_start = std::move(*sc_start_bw);
-      auto const& sc = w.r_->get_shortcut(sc_start.n_, backward_n.n_, false);
-
+      auto const& sc = w.r_->get_shortcut<false>(sc_start.n_, backward_n.n_);
+      // std::cout << "(BW)";
+      // backward_n.print(std::cout, w);
+      // std::cout << " <- \n";
+      // sc_start.print(std::cout, w);
+      // std::cout << "\n";
       if (sc.nodes_.size() > 1) {
         for (std::size_t i = (sc.nodes_.size() - 2); i >= 0; --i) {
           auto pred = typename P::node{
@@ -155,7 +163,7 @@ path reconstruct_cch_bidir(typename P::parameters const& params,
           backward_n = pred;
           if (i == 0) { break; }
         }
-      };
+      }
       backward_dist += add_path<P>(params, w, *w.r_, blocked, sharing, elevations, sc_start,
                                   backward_n, sc.costs_[0], backward_segments, opposite(dir));
       backward_n = sc_start;

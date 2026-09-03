@@ -81,6 +81,15 @@ struct customization {
     });
   }
 
+  template<bool WithRestrictions, bool IsBus>
+  void basic_customization(osr::search_profile const& profile,
+                           osr::profile_parameters const params) {
+    return with_valid_cch_profile(profile, [&]<osr::Profile P>(P&&) {
+      auto const& pp = std::get<typename P::parameters>(params);
+      return basic_customization<P, WithRestrictions, IsBus>(pp);
+    });
+  }
+
   // helper function to find way, dir and pos of two neighbors
   way_data find_way(osr::node_idx_t const& from, osr::node_idx_t const& to) {
     auto const& in_ways = r_->node_ways_[from];
@@ -164,7 +173,7 @@ struct customization {
     for (auto [rank, n] : utl::enumerate(r_->sc_targets_)) {
       if (n.empty()) { continue; }
       auto const& node = r_->contraction_order_[rank];
-      auto const node_cost = osr::clamp_cost(static_cast<std::uint64_t>(P::node_cost(params, r_->node_properties_[node])));
+      auto const node_cost = P::node_cost(params, r_->node_properties_[node]);
       r_->sc_costs_up_[rank].resize(n.size());
       r_->sc_costs_down_[rank].resize(n.size());
       r_->sc_up_[rank].resize(n.size());
@@ -199,7 +208,8 @@ struct customization {
           auto const& wp = r_->way_properties_[wd.way_];
           auto const dist = r_->get_way_node_distance(wd.way_, wd.node_in_way_idx_);
 
-          if (P::way_cost(params, wp, wd.dir_, 0U) != osr::kInfeasible) {
+          if (P::way_cost(params, wp, wd.dir_, 0U) != osr::kInfeasible &&
+              P::node_cost(params, r_->node_properties_[neighbor]) != osr::kInfeasible) {
             auto const wc_up = P::way_cost(params, wp, wd.dir_, dist);
             auto const neighbor_cost = P::node_cost(params, r_->node_properties_[neighbor]);
             auto cost_up = osr::clamp_cost(static_cast<std::uint64_t>(wc_up)) +
@@ -220,10 +230,11 @@ struct customization {
             r_->sc_up_[rank][idx] = sc_properties::invalid(neighbor);
           }
 
-          if (P::way_cost(params, wp, osr::opposite(wd.dir_), 0U) != osr::kInfeasible) {
+          if (P::way_cost(params, wp, osr::opposite(wd.dir_), 0U) != osr::kInfeasible &&
+              P::node_cost(params, r_->node_properties_[node]) != osr::kInfeasible) {
             auto const wc_down = P::way_cost(params, wp, osr::opposite(wd.dir_), dist);
             auto cost_down = osr::clamp_cost(static_cast<std::uint64_t>(wc_down)) + 
-                           osr::clamp_cost(static_cast<std::uint64_t>(node_cost));
+                             osr::clamp_cost(static_cast<std::uint64_t>(node_cost));
             if (wc_down == osr::kInfeasible || node_cost == osr::kInfeasible) {
               cost_down = osr::kInfeasible;
             }
@@ -253,8 +264,18 @@ struct customization {
     return targets.size();
   }
 
-  template<bool WithRestrictions, bool isBus>
-  void basic_customization() {
+  template<osr::Profile P>
+  osr::cost_t apply_u_turn_penalty(typename P::parameters const& params, 
+                                   sc_properties const& down, sc_properties const& up) {
+    if (down.ways_.back() == up.ways_[0] && down.dirs_.back() == osr::opposite(up.dirs_[0])) {
+      return params.uturn_penalty_;
+    } else {
+      return osr::cost_t{0U};
+    }
+  }
+
+  template<osr::Profile P, bool WithRestrictions, bool isBus>
+  void basic_customization(typename P::parameters const& params) {
     for (std::uint32_t rank = 0; rank < r_->contraction_order_.size(); ++rank) {
       utl::verify(r_->node_importance_.size() == r_->contraction_order_.size(), 
                   "rank caused segmentation fault");
@@ -277,12 +298,16 @@ struct customization {
             continue; 
           }
           auto const& old_cost_up = r_->sc_costs_up_[neighbor_rank][t_in_n_idx];
-          auto const new_cost_up = node_to_neighbor_cost_down + r_->sc_costs_up_[rank][t_idx];
+          auto const u_turn_penalty_up = apply_u_turn_penalty<P>(params, 
+                r_->sc_down_[rank][n_idx], r_->sc_up_[rank][t_idx]);
+          auto const new_cost_up = node_to_neighbor_cost_down + 
+                                        r_->sc_costs_up_[rank][t_idx] + 
+                                        u_turn_penalty_up;
           if (check_sc_update<WithRestrictions, isBus>(
                   rank, t_idx, n_idx, old_cost_up, new_cost_up, node_to_neighbor_cost_down, true)) {
             r_->sc_costs_up_[neighbor_rank][t_in_n_idx] = new_cost_up;
             auto new_sc_up = r_->sc_down_[rank][n_idx];
-            new_sc_up.append(r_->sc_up_[rank][t_idx]);
+            new_sc_up.append(r_->sc_up_[rank][t_idx], u_turn_penalty_up);
             r_->sc_up_[neighbor_rank][t_in_n_idx] = new_sc_up;
 
             utl::verify(r_->sc_up_[neighbor_rank][t_in_n_idx].ways_.back() != osr::way_idx_t::invalid(),
@@ -293,12 +318,16 @@ struct customization {
           }
 
           auto const& old_cost_down = r_->sc_costs_down_[neighbor_rank][t_in_n_idx];
-          auto const new_cost_down = node_to_neighbor_cost_up + r_->sc_costs_down_[rank][t_idx];
+          auto const u_turn_penalty_down = apply_u_turn_penalty<P>(params, 
+                r_->sc_down_[rank][t_idx],r_->sc_up_[rank][n_idx]);
+          auto const new_cost_down = node_to_neighbor_cost_up + 
+                                     r_->sc_costs_down_[rank][t_idx] + 
+                                     u_turn_penalty_down;
           if (check_sc_update<WithRestrictions, isBus>(
                   rank, t_idx, n_idx, old_cost_down, new_cost_down, node_to_neighbor_cost_up, false)) {
             r_->sc_costs_down_[neighbor_rank][t_in_n_idx] = new_cost_down;
             auto new_sc_down = r_->sc_down_[rank][t_idx];
-            new_sc_down.append(r_->sc_up_[rank][n_idx]);
+            new_sc_down.append(r_->sc_up_[rank][n_idx], u_turn_penalty_down);
             r_->sc_down_[neighbor_rank][t_in_n_idx] = new_sc_down;
 
             utl::verify(r_->sc_down_[neighbor_rank][t_in_n_idx].ways_.back() != osr::way_idx_t::invalid(),
@@ -340,15 +369,6 @@ struct customization {
       }
     }
   }
-
-  // helper function
-  // void validate_costs(osr::vec<osr::cost_t> const& costs, bool is_up) {
-  //   auto const msg = " Expected increasing costs on path";
-  //   for (std::size_t i = 0; i < (costs.size() - 1); ++i) {
-  //     utl::verify(costs[i] <= costs[i + 1],
-  //         is_up ? std::string("[CSC UP]") + msg : std::string("[CSC DOWN]") + msg);
-  //   }
-  // }
 
   //helper function
   void validate_connectivity(osr::ways const& ways, cch::sc_properties const& path, 

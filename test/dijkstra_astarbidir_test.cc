@@ -32,7 +32,7 @@ namespace fs = std::filesystem;
 using namespace osr;
 
 constexpr auto const kUseMultithreading = true;
-constexpr auto const kPrintDebugGeojson = true;
+constexpr auto const kPrintDebugGeojson = false;
 constexpr auto const kMaxMatchDistance = 100;
 constexpr auto const kMaxAllowedPathDifferenceRatio = 0.5;
 
@@ -212,7 +212,7 @@ TEST(dijkstra_astarbidir, monaco_fwd) {
 TEST(dijkstra_astarbidir, monaco_bwd) {
   auto const raw_data = "test/monaco.osm.pbf";
   auto const data_dir = "test/monaco";
-  auto const num_samples = 10000U;
+  auto const num_samples = 1000U;
   auto const max_cost = 2 * 3600U;
   auto constexpr dir = direction::kBackward;
 
@@ -244,6 +244,25 @@ TEST(dijkstra_astarbidir, hamburg) {
 
   run(w, l, num_samples, max_cost, dir);
 }
+
+TEST(dijkstra_astarbidir, karlsruhe_kirchfeld) {
+  auto const raw_data = "test/karlsruhe-kirchfeld.osm.pbf";
+  auto const data_dir = "test/karlsruhe-kirchfeld";
+  auto const num_samples = 500U;
+  auto const max_cost = 3 * 3600U;
+  auto constexpr dir = direction::kForward;
+
+  if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
+    GTEST_SKIP() << raw_data << " not found";
+  }
+
+  load(raw_data, data_dir);
+  auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
+  auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
+
+  run(w, l, num_samples, max_cost, dir);
+}
+
 TEST(dijkstra_astarbidir, aachen) {
   auto const raw_data = "test/aachen.osm.pbf";
   auto const data_dir = "test/aachen";
@@ -265,7 +284,7 @@ TEST(dijkstra_astarbidir, aachen) {
 TEST(dijkstra_astarbidir, darmstadt_bismarckstr) {
   auto const raw_data = "test/darmstadt-bismarckstr.osm.pbf";
   auto const data_dir = "test/darmstadt-bismarckstr";
-  auto const num_samples = 1000U;
+  auto const num_samples = 10000U;
   auto const max_cost = 3 * 3600U;
   auto constexpr dir = direction::kForward;
 

@@ -498,7 +498,7 @@ TEST(shortcuts, extension) {
   valid_appendice.add(osr::node_idx_t{1}, osr::way_idx_t{2}, osr::direction::kBackward, osr::cost_t{4});
 
   auto valid_valid = valid_shortcut;
-  valid_valid.append(valid_appendice);
+  valid_valid.append(valid_appendice, osr::cost_t{0U});
 
   ASSERT_EQ(valid_valid.nodes_.size(), 2);
   ASSERT_EQ(valid_valid.nodes_[0], osr::node_idx_t{0});
