@@ -9,6 +9,25 @@
 
 namespace cch {
 
+struct edge_data {
+  osr::direction dir_down() {
+    return osr::opposite(dir_up_);
+  }
+
+  std::uint16_t neighbor_in_way_idx() {
+    if (dir_up_ == osr::direction::kForward) {
+      return node_in_way_idx_ + 1;
+    } else {
+      return node_in_way_idx_ - 1;
+    }
+  }
+
+  osr::node_idx_t neighbor_;
+  osr::way_idx_t way_;
+  osr::direction dir_up_;
+  std::uint16_t node_in_way_idx_;
+};
+
 struct shortcut_properties {
   osr::node_idx_t lower_end_;
   osr::node_idx_t upper_end_;

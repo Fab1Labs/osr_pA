@@ -346,16 +346,23 @@ struct ways {
     }
 
     template<bool IsUp>
-    cch::sc_properties get_shortcut(osr::node_idx_t const& from, 
-                                    osr::node_idx_t const& to) const {
+    cch::sc_properties get_shortcut(node_idx_t const& from, 
+                                    node_idx_t const& to) const {
       auto const& from_rank = node_importance_[from];
-      for (auto [idx, target] : utl::enumerate(sc_targets_[from_rank])) {
-        if (target == to) {
-          return IsUp ? sc_up_[from_rank][idx] : sc_down_[from_rank][idx];
+      auto const t_idx = get_target_idx(from, to);
+      return IsUp ? sc_up_[from_rank][t_idx] : sc_down_[from_rank][t_idx];
+    }
+
+    std::size_t get_target_idx(node_idx_t const& from,
+                               node_idx_t const& to) const {
+      auto const& from_rank = node_importance_[from];
+      for (auto const [idx, target] : 
+           utl::enumerate(sc_targets_[from_rank])) {
+        if (to == target) {
+          return idx;
         }
       }
-      throw utl::fail("The given node {} has no shortcut to target {}", 
-          from, to);
+      throw utl::fail("Node {} has not target {}", from, to);
     }
 
     static cista::wrapped<routing> read(std::filesystem::path const&);
@@ -393,8 +400,9 @@ struct ways {
     vec<vec<node_idx_t>> sc_targets_;
     vec<node_idx_t> contraction_order_;
 
-    vec<vec<vec<cost_t>>> sc_tc_up_;
-    vec<vec<vec<cost_t>>> sc_tc_down_;
+    vec<vec<cch::edge_data>> cch_edges_;
+    vec<vec<cost_t>> cch_cost_up_;
+    vec<vec<cost_t>> cch_cost_down_;
 
     vec<pair<node_idx_t, level_bits_t>> multi_level_elevators_;
 

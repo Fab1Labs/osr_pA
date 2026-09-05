@@ -2,9 +2,7 @@
 
 #include <iostream>
 
-#include "utl/verify.h"
-#include "utl/enumerate.h"
-#include "utl/zip.h"
+#include <utility>
 
 #include "osr/routing/profiles/car.h"
 #include "osr/routing/with_profile.h"
@@ -14,53 +12,6 @@
 #include "osr/shortcut.h"
 
 namespace cch {
-
-// struct customization_turncost {
-//   static constexpr auto const kDebug = false;
-
-//   customization_turncost(cista::wrapped<osr::ways::routing>& r)
-//     : r_{r} {}
-
-//   void init_neighbor_cost(osr::search_profile const& profile,
-//                           osr::profile_parameters const& params) {
-//     return with_valid_cch_profile(profile, [&]<osr::Profile P>(P&&) {
-//       auto const& pp = std::get<typename P::parameters>(params);
-//       return init_neighbor_cost<P>(pp);
-//     });
-//   }
-
-//   template<osr::Profile P>
-//   osr::vec<typename P::node> get_virtual_nodes(osr::node_idx_t const& n,
-//                                                osr::vec<way_idx_t> const& ways,
-//                                                osr::vec<std::uint16_t> const& idx) {
-    
-//                                                }
-
-//   template<osr::Profile P>
-//   void init_neighbor_cost(typename P::parameters const& params) {
-//     r_->sc_tc_up_.resize(r_->contraction_order_.size());
-//     r_->sc_tc_down_.resize(r_->contraction_order_.size());
-
-//     // iterate over all nodes in contraction order:
-//     for (auto const [rank, n] : utl::enumerate(r_->contraction_order_)) {
-//       auto const& ways = r_->node_ways_[n];
-//       auto const& in_way_idx = r_->node_in_way_idx_[n];
-//       auto const v_nodes = get_virtual_nodes<P>(n, ways, in_way_idx);
-//       auto const& targets = r_->sc_targets_[rank];
-//       r_->sc_tc_up_[rank].resize(r_->sc_targets_[rank].size());
-//       r_->sc_tc_down_[rank].resize(r_->sc_targets_[rank].size());
-
-//       // initialize all cost arrays for all virtual nodes to every target (up and down)
-//       for (auto const [t_idx, t] : utl::enumerate(targets)) {
-//         r_->sc_tc_up_[rank][t_idx].resize(ways.size(), osr::kInfeasible);
-//         r_->sc_tc_down_[rank][t_idx].resize(r_->node_ways_[t].size(), osr::kInfeasible);
-//       }
-//     }
-//     return;
-//   }
-
-//   cista::wrapped<osr::ways::routing>& r_;
-// };
 
 struct customization {
 
@@ -81,6 +32,14 @@ struct customization {
     });
   }
 
+  void get_cch_edges(osr::search_profile const& profile,
+                     osr::profile_parameters const& params) {
+    return with_valid_cch_profile(profile, [&]<osr::Profile P>(P&&) {
+      auto const& pp = std::get<typename P::parameters>(params);
+      return get_cch_edges<P>(pp);
+    });
+  }
+
   template<bool WithRestrictions, bool IsBus>
   void basic_customization(osr::search_profile const& profile,
                            osr::profile_parameters const params) {
@@ -88,6 +47,75 @@ struct customization {
       auto const& pp = std::get<typename P::parameters>(params);
       return basic_customization<P, WithRestrictions, IsBus>(pp);
     });
+  }
+
+  template<osr::Profile P>
+  void get_cch_edges(typename P::parameters const& params) {
+    r_->cch_edges_.resize(r_->contraction_order_.size());
+    r_->cch_cost_up_.resize(r_->contraction_order_.size());
+    r_->cch_cost_down_.resize(r_->contraction_order_.size());
+
+    for (auto const [rank, node] : utl::enumerate(r_->contraction_order_)) {
+      auto& edges = r_->cch_edges_[rank];
+      r_->cch_cost_up_[rank].resize(r_->sc_targets_[rank].size(), osr::kInfeasible);
+      r_->cch_cost_down_[rank].resize(r_->sc_targets_[rank].size(), osr::kInfeasible);
+      auto const node_cost = P::node_cost(params, r_->node_properties_[node]);
+      if (node_cost == osr::kInfeasible) {
+        continue;
+      }
+
+      for (auto const [way, idx] : 
+           utl::zip(r_->node_ways_[node], r_->node_in_way_idx_[node])) {
+        auto const get_edge = [&](osr::direction const dir, std::uint16_t const from,
+                                  std::uint16_t const to) {
+          // check importance
+          auto const neighbor = r_->way_nodes_[way][to];
+          if (r_->node_importance_[neighbor] <= rank) {
+            return;
+          }
+
+          auto const wp = r_->way_properties_[way];
+          auto const neighbor_p = r_->node_properties_[neighbor];
+          if (!wp.is_car_accessible_ || !neighbor_p.is_car_accessible_) {
+            return;
+          }
+
+          auto const target_idx = r_->get_target_idx(node, neighbor);
+          auto const dist = r_->get_way_node_distance(way, std::min(from, to));
+
+          // check way cost up
+          if (P::way_cost(params, wp, dir, 0U) != osr::kInfeasible &&
+              P::node_cost(params, r_->node_properties_[neighbor]) != osr::kInfeasible) {
+            r_->cch_cost_up_[rank][target_idx] = P::way_cost(params, wp, dir, dist) +
+                                                 P::node_cost(params, r_->node_properties_[neighbor]);
+          }
+
+          // check way cost down
+          if (P::way_cost(params, wp, osr::opposite(dir), 0U) != osr::kInfeasible &&
+              node_cost != osr::kInfeasible) {
+            r_->cch_cost_down_[rank][target_idx] = P::way_cost(params, wp, osr::opposite(dir), dist) +
+                                                   node_cost;
+          }
+
+          if (r_->cch_cost_up_[rank][target_idx] != osr::kInfeasible || 
+              r_->cch_cost_down_[rank][target_idx] != osr::kInfeasible) {
+            edges.push_back(edge_data{
+              .neighbor_ = neighbor,
+              .way_ = way,
+              .dir_up_ = dir,
+              .node_in_way_idx_ = from
+            });
+          }
+        };
+
+        if (idx != 0U) {
+          get_edge(osr::direction::kBackward, idx, idx - 1);
+        }
+        if (idx != r_->way_nodes_[way].size() - 1U) {
+          get_edge(osr::direction::kForward, idx, idx + 1);
+        }
+      }
+    }
   }
 
   // helper function to find way, dir and pos of two neighbors
@@ -449,6 +477,53 @@ struct customization {
         // }
         //validate_costs(path.costs_, false);
         validate_connectivity(w, path, node, false);
+      }
+    }
+  }
+
+  void validate_neighbors(osr::ways const& w) {
+    for (auto const [rank, node] : utl::enumerate(r_->contraction_order_)) {
+      for (auto neighbor : r_->cch_edges_[rank]) {
+        auto const& target = neighbor.neighbor_;
+        auto const t_idx = r_->get_target_idx(node, target);
+        //auto const& sc_property_up = r_->sc_up_[rank][t_idx];
+        auto const& sc_property_down = r_->sc_down_[rank][t_idx];
+
+        // utl::verify(sc_property_up.nodes_[0] == target, 
+        //             "[SC UP] Expected target {} but got {}",
+        //             sc_property_up.nodes_[0], target);
+        // utl::verify(sc_property_up.ways_[0] == neighbor.way_,
+        //             "[SC UP] Expected way {} but got {}",
+        //             sc_property_up.ways_[0], neighbor.way_);
+        utl::verify(sc_property_down.nodes_[0] == node && 
+                    sc_property_down.ways_[0] == neighbor.way_,
+                    "[SC DOWN] From {} to {}\n old: {} -> {} on {}\n new: {} -> {} on {}",
+                    w.node_to_osm_[target], w.node_to_osm_[node],
+                    w.node_to_osm_[target], w.node_to_osm_[sc_property_down.nodes_[0]],
+                    w.way_osm_idx_[sc_property_down.ways_[0]],
+                    w.node_to_osm_[neighbor.neighbor_], w.node_to_osm_[node],
+                    w.way_osm_idx_[neighbor.way_]);
+
+ 
+        utl::verify(sc_property_down.nodes_[0] == node,
+                    "[SC DOWN] Exptected target {} but got {}",
+                    sc_property_down.nodes_[0], node);
+        utl::verify(sc_property_down.ways_.back() == neighbor.way_,
+                    "[SC_DOWN] Exptected way {} but got {}",
+                    sc_property_down.ways_.back(), neighbor.way_);
+        
+      }
+
+      for (auto const [t_idx, target] : utl::enumerate(r_->sc_targets_[rank])) {
+        utl::verify(r_->cch_cost_up_[rank].size() == r_->sc_costs_up_[rank].size(),
+                    "[SC COST] Unequal Array size for target costs.\n CCH_COST: {}\n SC_COST: {}\n TARGETS: {}",
+                    r_->cch_cost_up_[rank].size(), r_->sc_costs_up_[rank].size(), r_->sc_targets_[rank].size());
+        utl::verify(r_->cch_cost_up_[rank][t_idx] == r_->sc_costs_up_[rank][t_idx], 
+                    "[COST UP] Expected equal costs. Got {} but expected {}", 
+                    r_->sc_costs_up_[rank][t_idx], r_->cch_cost_up_[rank][t_idx]);
+        utl::verify(r_->cch_cost_down_[rank][t_idx] == r_->sc_costs_down_[rank][t_idx],
+                    "[COST DOWN] Expected equal costs. Got {} but expected {}",
+                    r_->cch_cost_down_[rank][t_idx], r_->sc_costs_down_[rank][t_idx]);
       }
     }
   }
