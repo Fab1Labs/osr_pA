@@ -51,14 +51,16 @@ struct customization {
 
   template<osr::Profile P>
   void get_cch_edges(typename P::parameters const& params) {
-    r_->cch_edges_.resize(r_->contraction_order_.size());
     r_->cch_cost_up_.resize(r_->contraction_order_.size());
     r_->cch_cost_down_.resize(r_->contraction_order_.size());
+    r_->cch_sc_up_.resize(r_->contraction_order_.size());
+    r_->cch_sc_down_.resize(r_->contraction_order_.size());
 
     for (auto const [rank, node] : utl::enumerate(r_->contraction_order_)) {
-      auto& edges = r_->cch_edges_[rank];
       r_->cch_cost_up_[rank].resize(r_->sc_targets_[rank].size(), osr::kInfeasible);
       r_->cch_cost_down_[rank].resize(r_->sc_targets_[rank].size(), osr::kInfeasible);
+      r_->cch_sc_up_[rank].resize(r_->sc_targets_[rank].size());
+      r_->cch_sc_down_[rank].resize(r_->sc_targets_[rank].size());
       auto const node_cost = P::node_cost(params, r_->node_properties_[node]);
       if (node_cost == osr::kInfeasible) {
         continue;
@@ -97,14 +99,31 @@ struct customization {
                                                    node_cost;
           }
 
-          if (r_->cch_cost_up_[rank][target_idx] != osr::kInfeasible || 
-              r_->cch_cost_down_[rank][target_idx] != osr::kInfeasible) {
-            edges.push_back(edge_data{
-              .neighbor_ = neighbor,
-              .way_ = way,
-              .dir_up_ = dir,
-              .node_in_way_idx_ = from
-            });
+          auto const upper = cch::target_node{neighbor, r_->get_way_pos(neighbor, way, to), dir};
+          auto const lower = cch::target_node{node, r_->get_way_pos(node, way, from), osr::opposite(dir)};
+          // add "shortcuts" of edge length 1 upward
+          if (r_->cch_cost_up_[rank][target_idx] != osr::kInfeasible) {
+            r_->cch_sc_up_[rank][target_idx] = cch::packed_shortcut{
+              .entry_node_ = lower,
+              .exit_node_ = upper,
+              .down_ = nullptr,
+              .up_ = nullptr,
+              .u_turn_penalty_ = osr::cost_t{0U}
+            };
+          } else {
+            r_->cch_sc_up_[rank][target_idx] = cch::packed_shortcut::invalid();
+          }
+          // add "shortcuts" of edge length 1 downward
+          if (r_->cch_cost_down_[rank][target_idx] != osr::kInfeasible) {
+            r_->cch_sc_down_[rank][target_idx] = cch::packed_shortcut{
+              .entry_node_ = upper,
+              .exit_node_ = lower,
+              .down_ = nullptr,
+              .up_ = nullptr,
+              .u_turn_penalty_ = osr::cost_t{0}
+            };
+          } else {
+            r_->cch_sc_down_[rank][target_idx] = cch::packed_shortcut::invalid();
           }
         };
 
@@ -483,47 +502,19 @@ struct customization {
 
   void validate_neighbors(osr::ways const& w) {
     for (auto const [rank, node] : utl::enumerate(r_->contraction_order_)) {
-      for (auto neighbor : r_->cch_edges_[rank]) {
-        auto const& target = neighbor.neighbor_;
-        auto const t_idx = r_->get_target_idx(node, target);
-        //auto const& sc_property_up = r_->sc_up_[rank][t_idx];
-        auto const& sc_property_down = r_->sc_down_[rank][t_idx];
+      for (auto [t_idx, target] : utl::enumerate(r_->sc_targets_[rank])) {
+        if (r_->sc_costs_up_[rank][t_idx] == osr::kInfeasible) {
+          continue;
+        }
 
-        // utl::verify(sc_property_up.nodes_[0] == target, 
-        //             "[SC UP] Expected target {} but got {}",
-        //             sc_property_up.nodes_[0], target);
-        // utl::verify(sc_property_up.ways_[0] == neighbor.way_,
-        //             "[SC UP] Expected way {} but got {}",
-        //             sc_property_up.ways_[0], neighbor.way_);
-        utl::verify(sc_property_down.nodes_[0] == node && 
-                    sc_property_down.ways_[0] == neighbor.way_,
-                    "[SC DOWN] From {} to {}\n old: {} -> {} on {}\n new: {} -> {} on {}",
-                    w.node_to_osm_[target], w.node_to_osm_[node],
-                    w.node_to_osm_[target], w.node_to_osm_[sc_property_down.nodes_[0]],
-                    w.way_osm_idx_[sc_property_down.ways_[0]],
-                    w.node_to_osm_[neighbor.neighbor_], w.node_to_osm_[node],
-                    w.way_osm_idx_[neighbor.way_]);
+        auto const& sc_old = r_->sc_up_[rank][t_idx];
+        auto const& sc_new = r_->cch_sc_up_[rank][t_idx];
 
- 
-        utl::verify(sc_property_down.nodes_[0] == node,
-                    "[SC DOWN] Exptected target {} but got {}",
-                    sc_property_down.nodes_[0], node);
-        utl::verify(sc_property_down.ways_.back() == neighbor.way_,
-                    "[SC_DOWN] Exptected way {} but got {}",
-                    sc_property_down.ways_.back(), neighbor.way_);
-        
-      }
-
-      for (auto const [t_idx, target] : utl::enumerate(r_->sc_targets_[rank])) {
-        utl::verify(r_->cch_cost_up_[rank].size() == r_->sc_costs_up_[rank].size(),
-                    "[SC COST] Unequal Array size for target costs.\n CCH_COST: {}\n SC_COST: {}\n TARGETS: {}",
-                    r_->cch_cost_up_[rank].size(), r_->sc_costs_up_[rank].size(), r_->sc_targets_[rank].size());
-        utl::verify(r_->cch_cost_up_[rank][t_idx] == r_->sc_costs_up_[rank][t_idx], 
-                    "[COST UP] Expected equal costs. Got {} but expected {}", 
-                    r_->sc_costs_up_[rank][t_idx], r_->cch_cost_up_[rank][t_idx]);
-        utl::verify(r_->cch_cost_down_[rank][t_idx] == r_->sc_costs_down_[rank][t_idx],
-                    "[COST DOWN] Expected equal costs. Got {} but expected {}",
-                    r_->cch_cost_down_[rank][t_idx], r_->sc_costs_down_[rank][t_idx]);
+        auto const new_way = r_->node_ways_[sc_new.entry_node_.n_][sc_new.entry_node_.way_];
+        utl::verify(new_way == sc_old.ways_.back(), 
+                    "[SC UP] Expected way {} but got {} between {} and {}",
+                    w.way_osm_idx_[sc_old.ways_.back()], w.way_osm_idx_[new_way], 
+                    w.node_to_osm_[sc_new.entry_node_.n_], w.node_to_osm_[sc_new.exit_node_.n_]);
       }
     }
   }

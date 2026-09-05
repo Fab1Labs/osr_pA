@@ -3,29 +3,43 @@
 #include <numeric>
 
 #include "utl/verify.h"
+#include "cista/containers/unique_ptr.h"
 
 #include "osr/types.h"
 #include "osr/ways.h"
 
 namespace cch {
 
-struct edge_data {
-  osr::direction dir_down() {
-    return osr::opposite(dir_up_);
+struct target_node {
+  static constexpr target_node invalid() noexcept {
+    return target_node{
+      .n_ = osr::node_idx_t{0U},
+      .way_ = osr::way_pos_t{0U},
+      .dir_ = osr::direction::kForward
+    };
   }
 
-  std::uint16_t neighbor_in_way_idx() {
-    if (dir_up_ == osr::direction::kForward) {
-      return node_in_way_idx_ + 1;
-    } else {
-      return node_in_way_idx_ - 1;
-    }
+  osr::node_idx_t n_;
+  osr::way_pos_t way_;
+  osr::direction dir_;
+};
+
+struct packed_shortcut {
+  static constexpr packed_shortcut invalid() noexcept {
+    return packed_shortcut{
+      .entry_node_ = target_node::invalid(),
+      .exit_node_ = target_node::invalid(),
+      .down_ = nullptr,
+      .up_ = nullptr,
+      .u_turn_penalty_ = osr::kInfeasible
+    };
   }
 
-  osr::node_idx_t neighbor_;
-  osr::way_idx_t way_;
-  osr::direction dir_up_;
-  std::uint16_t node_in_way_idx_;
+  target_node entry_node_;
+  target_node exit_node_;
+  cista::offset::unique_ptr<packed_shortcut> down_;
+  cista::offset::unique_ptr<packed_shortcut> up_;
+  osr::cost_t u_turn_penalty_;
 };
 
 struct shortcut_properties {

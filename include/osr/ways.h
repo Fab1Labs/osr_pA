@@ -400,7 +400,8 @@ struct ways {
     vec<vec<node_idx_t>> sc_targets_;
     vec<node_idx_t> contraction_order_;
 
-    vec<vec<cch::edge_data>> cch_edges_;
+    vec<vec<cch::packed_shortcut>> cch_sc_up_;
+    vec<vec<cch::packed_shortcut>> cch_sc_down_;
     vec<vec<cost_t>> cch_cost_up_;
     vec<vec<cost_t>> cch_cost_down_;
 
