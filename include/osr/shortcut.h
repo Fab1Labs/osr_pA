@@ -13,7 +13,7 @@ namespace cch {
 struct target_node {
   static constexpr target_node invalid() noexcept {
     return target_node{
-      .n_ = osr::node_idx_t{0U},
+      .n_ = osr::node_idx_t::invalid(),
       .way_ = osr::way_pos_t{0U},
       .dir_ = osr::direction::kForward
     };
@@ -29,16 +29,18 @@ struct packed_shortcut {
     return packed_shortcut{
       .entry_node_ = target_node::invalid(),
       .exit_node_ = target_node::invalid(),
-      .down_ = nullptr,
-      .up_ = nullptr,
+      .down_ = 0U,
+      .up_ = 0U,
+      .via_rank_ = 0U,
       .u_turn_penalty_ = osr::kInfeasible
     };
   }
 
   target_node entry_node_;
   target_node exit_node_;
-  cista::offset::unique_ptr<packed_shortcut> down_;
-  cista::offset::unique_ptr<packed_shortcut> up_;
+  std::size_t down_;
+  std::size_t up_;
+  std::size_t via_rank_;
   osr::cost_t u_turn_penalty_;
 };
 

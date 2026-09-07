@@ -41,6 +41,15 @@ struct customization {
   }
 
   template<bool WithRestrictions, bool IsBus>
+  void customize_shortcuts(osr::search_profile const& profile,
+                           osr::profile_parameters const& params) {
+    return with_valid_cch_profile(profile, [&]<osr::Profile P>(P&&) {
+      auto const& pp = std::get<typename P::parameters>(params);
+      return customize_shortcuts<P, WithRestrictions, IsBus>(pp);
+    });
+  }
+
+  template<bool WithRestrictions, bool IsBus>
   void basic_customization(osr::search_profile const& profile,
                            osr::profile_parameters const params) {
     return with_valid_cch_profile(profile, [&]<osr::Profile P>(P&&) {
@@ -59,8 +68,8 @@ struct customization {
     for (auto const [rank, node] : utl::enumerate(r_->contraction_order_)) {
       r_->cch_cost_up_[rank].resize(r_->sc_targets_[rank].size(), osr::kInfeasible);
       r_->cch_cost_down_[rank].resize(r_->sc_targets_[rank].size(), osr::kInfeasible);
-      r_->cch_sc_up_[rank].resize(r_->sc_targets_[rank].size());
-      r_->cch_sc_down_[rank].resize(r_->sc_targets_[rank].size());
+      r_->cch_sc_up_[rank].resize(r_->sc_targets_[rank].size(), packed_shortcut::invalid());
+      r_->cch_sc_down_[rank].resize(r_->sc_targets_[rank].size(), packed_shortcut::invalid());
       auto const node_cost = P::node_cost(params, r_->node_properties_[node]);
       if (node_cost == osr::kInfeasible) {
         continue;
@@ -70,18 +79,15 @@ struct customization {
            utl::zip(r_->node_ways_[node], r_->node_in_way_idx_[node])) {
         auto const get_edge = [&](osr::direction const dir, std::uint16_t const from,
                                   std::uint16_t const to) {
-          // check importance
+          // check importance and accessibility
           auto const neighbor = r_->way_nodes_[way][to];
-          if (r_->node_importance_[neighbor] <= rank) {
+          auto const neighbor_p = r_->node_properties_[neighbor];
+          if (r_->node_importance_[neighbor] <= rank ||
+              !neighbor_p.is_car_accessible_) {
             return;
           }
 
           auto const wp = r_->way_properties_[way];
-          auto const neighbor_p = r_->node_properties_[neighbor];
-          if (!wp.is_car_accessible_ || !neighbor_p.is_car_accessible_) {
-            return;
-          }
-
           auto const target_idx = r_->get_target_idx(node, neighbor);
           auto const dist = r_->get_way_node_distance(way, std::min(from, to));
 
@@ -106,24 +112,22 @@ struct customization {
             r_->cch_sc_up_[rank][target_idx] = cch::packed_shortcut{
               .entry_node_ = lower,
               .exit_node_ = upper,
-              .down_ = nullptr,
-              .up_ = nullptr,
+              .down_ = 0U,
+              .up_ = 0U,
+              .via_rank_ = 0U,
               .u_turn_penalty_ = osr::cost_t{0U}
             };
-          } else {
-            r_->cch_sc_up_[rank][target_idx] = cch::packed_shortcut::invalid();
           }
           // add "shortcuts" of edge length 1 downward
           if (r_->cch_cost_down_[rank][target_idx] != osr::kInfeasible) {
             r_->cch_sc_down_[rank][target_idx] = cch::packed_shortcut{
               .entry_node_ = upper,
               .exit_node_ = lower,
-              .down_ = nullptr,
-              .up_ = nullptr,
+              .down_ = 0U,
+              .up_ = 0U,
+              .via_rank_ = 0U,
               .u_turn_penalty_ = osr::cost_t{0}
             };
-          } else {
-            r_->cch_sc_down_[rank][target_idx] = cch::packed_shortcut::invalid();
           }
         };
 
@@ -135,6 +139,135 @@ struct customization {
         }
       }
     }
+  }
+
+  template<osr::Profile P, bool WithRestrictions, bool IsBus>
+  void customize_shortcuts(typename P::parameters const& params) {
+    for (auto const [rank, node] : utl::enumerate(r_->contraction_order_)) {
+      auto const& neighbors = r_->sc_targets_[rank];
+      utl::verify(neighbors.size() == r_->cch_sc_up_[rank].size() &&
+                  neighbors.size() == r_->cch_sc_down_[rank].size() &&
+                  neighbors.size() == r_->cch_cost_up_[rank].size() &&
+                  neighbors.size() == r_->cch_cost_down_[rank].size(),
+                  "[CCH Customization] Unequal array sizes");
+      if (neighbors.empty() || !r_->node_properties_[node].is_car_accessible_) {
+        continue;
+      }
+      //shortcut goes entry -> node -> target
+      for (auto const [n_idx, entry] : utl::enumerate(neighbors)) {
+        auto const& n_rank = r_->node_importance_[entry];
+        auto const& targets = r_->sc_targets_[n_rank];
+        auto const& node_to_entry_cost = r_->cch_cost_up_[rank][n_idx];
+        auto const& entry_to_node_cost = r_->cch_cost_down_[rank][n_idx];
+
+        for (std::size_t t_idx = n_idx + 1; t_idx < neighbors.size(); ++t_idx) {
+          auto const& target = neighbors[t_idx];
+          utl::verify(r_->node_importance_[target] > r_->node_importance_[entry], 
+                      "[CUSTOMIZATION] Expected higher rank from entry to target");
+          auto const t_n_idx = find_target(targets, target);
+
+          if (t_n_idx == targets.size()) {
+            continue;
+          }
+
+          // check for shortcut up
+          auto const& entry_to_target_cost = r_->cch_cost_up_[n_rank][t_n_idx];
+          auto u_turn_penalty_up = osr::kInfeasible;
+          if(entry_to_node_cost != osr::kInfeasible &&
+             r_->cch_cost_down_[rank][t_idx] != osr::kInfeasible) {
+            u_turn_penalty_up = get_penalty<P, WithRestrictions, IsBus>(params, 
+                     node, r_->cch_sc_down_[rank][n_idx], r_->cch_sc_up_[rank][t_idx]);
+          }
+          
+          if (combineable(entry_to_target_cost, r_->cch_cost_up_[rank][t_idx], 
+                          entry_to_node_cost, u_turn_penalty_up)) {
+            r_->cch_cost_up_[n_rank][t_n_idx] = entry_to_node_cost + u_turn_penalty_up + 
+                                                r_->cch_cost_up_[rank][t_idx];
+            auto& shortcut_up = r_->cch_sc_up_[n_rank][t_n_idx];
+            combine_shortcuts(shortcut_up, rank, n_idx, t_idx, u_turn_penalty_up);
+          }
+
+          // check for shortcut down
+          auto const& target_to_entry_cost = r_->cch_cost_down_[n_rank][t_n_idx];
+          auto u_turn_penalty_down = osr::kInfeasible;
+          if (node_to_entry_cost != osr::kInfeasible &&
+              r_->cch_cost_down_[rank][t_idx] != osr::kInfeasible) {
+            u_turn_penalty_down = get_penalty<P, WithRestrictions, IsBus>(params,
+                     node, r_->cch_sc_down_[rank][t_idx], r_->cch_sc_up_[rank][n_idx]);
+          }
+
+          if (combineable(target_to_entry_cost, node_to_entry_cost, 
+                          r_->cch_cost_down_[rank][t_idx], u_turn_penalty_down)) {
+            r_->cch_cost_down_[n_rank][t_n_idx] = r_->cch_cost_down_[rank][t_idx] + 
+                                                  u_turn_penalty_down + node_to_entry_cost;
+            auto& shortcut_down = r_->cch_sc_down_[n_rank][t_n_idx];
+            combine_shortcuts(shortcut_down, rank, t_idx, n_idx,  u_turn_penalty_down);
+          }
+        }
+      }
+    }
+  }
+
+  template<osr::Profile P, bool WithRestrictions, bool IsBus>
+  osr::cost_t get_penalty(typename P::parameters const& params, osr::node_idx_t const& n,
+                          packed_shortcut const& down, packed_shortcut const& up) {
+    auto const& exit_down = down.exit_node_;
+    auto const& entry_up = up.entry_node_;
+
+    utl::verify((exit_down.n_ == n || exit_down.n_ == osr::node_idx_t::invalid()) &&
+                 (entry_up.n_ == n || entry_up.n_ == osr::node_idx_t::invalid()),
+                 "[GET_PENALTY] Expected same meetpoint at {} but got {} and {}",
+                 n, exit_down.n_, entry_up.n_);
+    
+    if (exit_down.n_ != entry_up.n_) {
+      return osr::kInfeasible;
+    }
+
+    if constexpr (WithRestrictions) {
+      if (r_->is_restricted<osr::direction::kForward, 
+                            IsBus>(n, exit_down.way_, entry_up.way_)) {
+        return osr::kInfeasible;
+      }
+    }
+
+    if (exit_down.way_ == entry_up.way_ && 
+        exit_down.dir_ == osr::opposite(entry_up.dir_)) {
+      return params.uturn_penalty_;
+    } else {
+      return osr::cost_t{0U};
+    }
+  }
+
+  bool combineable(osr::cost_t const& old_cost,
+                   osr::cost_t const& via_to_target_cost,
+                   osr::cost_t const& entry_to_via_cost,
+                   osr::cost_t const& penalty) {
+    if (penalty == osr::kInfeasible || 
+        via_to_target_cost == osr::kInfeasible || 
+        entry_to_via_cost == osr::kInfeasible) {
+      return false;
+    }
+
+    auto const new_cost = entry_to_via_cost + penalty +
+                          via_to_target_cost;
+    if (old_cost <= new_cost || new_cost == osr::kInfeasible) {
+      return false;
+    } 
+
+    return true;
+  }
+
+  void combine_shortcuts(packed_shortcut& new_shortcut,
+                         std::size_t const via_rank, 
+                         std::size_t const entry_idx,
+                         std::size_t const target_idx, 
+                         osr::cost_t const& penalty) {
+    new_shortcut.entry_node_ = r_->cch_sc_down_[via_rank][entry_idx].entry_node_;
+    new_shortcut.exit_node_ = r_->cch_sc_up_[via_rank][target_idx].exit_node_;
+    new_shortcut.down_ = entry_idx;
+    new_shortcut.up_ = target_idx;
+    new_shortcut.via_rank_ = via_rank;
+    new_shortcut.u_turn_penalty_ = penalty;
   }
 
   // helper function to find way, dir and pos of two neighbors

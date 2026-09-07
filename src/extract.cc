@@ -721,8 +721,10 @@ void extract(bool const with_platforms,
   customization.basic_customization<true, false>(profile, params);
   customization.transform_downward_paths();
   customization.check_shortcut_correctness(w);
+  customization.customize_shortcuts<true, false>(profile, params);
   w.r_->write(out);
-  customization.validate_neighbors(w);
+  //customization.validate_neighbors(w);
+  //std::cout << "Searched Node: " << w.node_to_osm_[node_idx_t{11616}] << "\n";
 
   pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);
   lookup{w, out, cista::mmap::protection::WRITE}.build_rtree();
