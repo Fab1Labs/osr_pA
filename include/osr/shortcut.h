@@ -19,6 +19,11 @@ struct target_node {
     };
   }
 
+  bool valid() const {
+    return n_ != osr::node_idx_t::invalid() &&
+           way_ != osr::way_pos_t{0U};
+  }
+
   osr::node_idx_t n_;
   osr::way_pos_t way_;
   osr::direction dir_;
@@ -36,12 +41,27 @@ struct packed_shortcut {
     };
   }
 
+  bool valid() const {
+    return entry_node_.valid() && exit_node_.valid() && 
+           u_turn_penalty_ != osr::kInfeasible;
+  }
+
   target_node entry_node_;
   target_node exit_node_;
   std::size_t down_;
   std::size_t up_;
   std::size_t via_rank_;
   osr::cost_t u_turn_penalty_;
+};
+
+struct unpacked_shortcut {
+
+  void append(unpacked_shortcut const& other) {
+    path_.insert(path_.end(), other.path_.begin(), other.path_.end());
+    costs_.insert(costs_.end(), other.costs_.begin(), other.costs_.end());
+  }
+  osr::vec<target_node> path_;
+  osr::vec<osr::cost_t> costs_;
 };
 
 struct shortcut_properties {

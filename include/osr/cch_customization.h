@@ -70,6 +70,7 @@ struct customization {
       r_->cch_cost_down_[rank].resize(r_->sc_targets_[rank].size(), osr::kInfeasible);
       r_->cch_sc_up_[rank].resize(r_->sc_targets_[rank].size(), packed_shortcut::invalid());
       r_->cch_sc_down_[rank].resize(r_->sc_targets_[rank].size(), packed_shortcut::invalid());
+
       auto const node_cost = P::node_cost(params, r_->node_properties_[node]);
       if (node_cost == osr::kInfeasible) {
         continue;
@@ -93,9 +94,9 @@ struct customization {
 
           // check way cost up
           if (P::way_cost(params, wp, dir, 0U) != osr::kInfeasible &&
-              P::node_cost(params, r_->node_properties_[neighbor]) != osr::kInfeasible) {
+              P::node_cost(params, neighbor_p) != osr::kInfeasible) {
             r_->cch_cost_up_[rank][target_idx] = P::way_cost(params, wp, dir, dist) +
-                                                 P::node_cost(params, r_->node_properties_[neighbor]);
+                                                 P::node_cost(params, neighbor_p);
           }
 
           // check way cost down
@@ -262,8 +263,13 @@ struct customization {
                          std::size_t const entry_idx,
                          std::size_t const target_idx, 
                          osr::cost_t const& penalty) {
-    new_shortcut.entry_node_ = r_->cch_sc_down_[via_rank][entry_idx].entry_node_;
-    new_shortcut.exit_node_ = r_->cch_sc_up_[via_rank][target_idx].exit_node_;
+    auto const& new_entry = r_->cch_sc_down_[via_rank][entry_idx].entry_node_;
+    auto const& new_exit = r_->cch_sc_up_[via_rank][target_idx].exit_node_;
+
+    utl::verify(new_entry.valid() &&  new_exit.valid(),
+                "[CCH Shortcut Combination] Failed to combine shortcuts due to invalid target nodes");
+    new_shortcut.entry_node_ = new_entry;
+    new_shortcut.exit_node_ = new_exit;
     new_shortcut.down_ = entry_idx;
     new_shortcut.up_ = target_idx;
     new_shortcut.via_rank_ = via_rank;
