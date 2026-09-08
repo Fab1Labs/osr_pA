@@ -366,7 +366,7 @@ struct ways {
     }
 
     bool cch_true_edge(cch::packed_shortcut const& sc) const {
-      if (!sc.valid()) {
+      if (!sc.is_valid()) {
         utl::fail("[CCH EDGE CHECK] Got invalid Shortcut in path. Failed unpacking");
       }
 

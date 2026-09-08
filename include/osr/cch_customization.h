@@ -91,44 +91,43 @@ struct customization {
           auto const wp = r_->way_properties_[way];
           auto const target_idx = r_->get_target_idx(node, neighbor);
           auto const dist = r_->get_way_node_distance(way, std::min(from, to));
+          auto const node_way_pos = r_->get_way_pos(node, way, from);
+          auto const neighbor_way_pos = r_->get_way_pos(neighbor, way, to);
 
           // check way cost up
           if (P::way_cost(params, wp, dir, 0U) != osr::kInfeasible &&
               P::node_cost(params, neighbor_p) != osr::kInfeasible) {
-            r_->cch_cost_up_[rank][target_idx] = P::way_cost(params, wp, dir, dist) +
-                                                 P::node_cost(params, neighbor_p);
-          }
-
-          // check way cost down
-          if (P::way_cost(params, wp, osr::opposite(dir), 0U) != osr::kInfeasible &&
-              node_cost != osr::kInfeasible) {
-            r_->cch_cost_down_[rank][target_idx] = P::way_cost(params, wp, osr::opposite(dir), dist) +
-                                                   node_cost;
-          }
-
-          auto const upper = cch::target_node{neighbor, r_->get_way_pos(neighbor, way, to), dir};
-          auto const lower = cch::target_node{node, r_->get_way_pos(node, way, from), osr::opposite(dir)};
-          // add "shortcuts" of edge length 1 upward
-          if (r_->cch_cost_up_[rank][target_idx] != osr::kInfeasible) {
-            r_->cch_sc_up_[rank][target_idx] = cch::packed_shortcut{
-              .entry_node_ = lower,
-              .exit_node_ = upper,
+            auto const new_way_cost_up = P::way_cost(params, wp, dir, dist) +
+                                         P::node_cost(params, neighbor_p);
+            if (new_way_cost_up < r_->cch_cost_up_[rank][target_idx]) {
+              r_->cch_cost_up_[rank][target_idx] = new_way_cost_up;
+              r_->cch_sc_up_[rank][target_idx] = cch::packed_shortcut{
+              .entry_node_ = cch::target_node{node, node_way_pos, dir},
+              .exit_node_ = cch::target_node{neighbor, neighbor_way_pos, dir},
               .down_ = 0U,
               .up_ = 0U,
               .via_rank_ = 0U,
               .u_turn_penalty_ = osr::cost_t{0U}
             };
+            }
           }
-          // add "shortcuts" of edge length 1 downward
-          if (r_->cch_cost_down_[rank][target_idx] != osr::kInfeasible) {
-            r_->cch_sc_down_[rank][target_idx] = cch::packed_shortcut{
-              .entry_node_ = upper,
-              .exit_node_ = lower,
+
+          // check way cost down
+          if (P::way_cost(params, wp, osr::opposite(dir), 0U) != osr::kInfeasible &&
+              node_cost != osr::kInfeasible) {
+            auto const new_way_cost_down = P::way_cost(params, wp, osr::opposite(dir), dist) +
+                                                   node_cost;
+            if (new_way_cost_down < r_->cch_cost_down_[rank][target_idx]) {
+              r_->cch_cost_down_[rank][target_idx] = new_way_cost_down;
+              r_->cch_sc_down_[rank][target_idx] = cch::packed_shortcut{
+              .entry_node_ = cch::target_node{neighbor, neighbor_way_pos, osr::opposite(dir)},
+              .exit_node_ = cch::target_node{node, node_way_pos, osr::opposite(dir)},
               .down_ = 0U,
               .up_ = 0U,
               .via_rank_ = 0U,
               .u_turn_penalty_ = osr::cost_t{0}
             };
+            }
           }
         };
 
@@ -175,7 +174,7 @@ struct customization {
           auto const& entry_to_target_cost = r_->cch_cost_up_[n_rank][t_n_idx];
           auto u_turn_penalty_up = osr::kInfeasible;
           if(entry_to_node_cost != osr::kInfeasible &&
-             r_->cch_cost_down_[rank][t_idx] != osr::kInfeasible) {
+             r_->cch_cost_up_[rank][t_idx] != osr::kInfeasible) {
             u_turn_penalty_up = get_penalty<P, WithRestrictions, IsBus>(params, 
                      node, r_->cch_sc_down_[rank][n_idx], r_->cch_sc_up_[rank][t_idx]);
           }
@@ -266,7 +265,7 @@ struct customization {
     auto const& new_entry = r_->cch_sc_down_[via_rank][entry_idx].entry_node_;
     auto const& new_exit = r_->cch_sc_up_[via_rank][target_idx].exit_node_;
 
-    utl::verify(new_entry.valid() &&  new_exit.valid(),
+    utl::verify(new_entry.is_valid() &&  new_exit.is_valid(),
                 "[CCH Shortcut Combination] Failed to combine shortcuts due to invalid target nodes");
     new_shortcut.entry_node_ = new_entry;
     new_shortcut.exit_node_ = new_exit;
@@ -642,18 +641,45 @@ struct customization {
   void validate_neighbors(osr::ways const& w) {
     for (auto const [rank, node] : utl::enumerate(r_->contraction_order_)) {
       for (auto [t_idx, target] : utl::enumerate(r_->sc_targets_[rank])) {
-        if (r_->sc_costs_up_[rank][t_idx] == osr::kInfeasible) {
-          continue;
+
+        auto const& cost_up = r_->cch_cost_up_[rank][t_idx];
+        auto const& cost_down = r_->cch_cost_down_[rank][t_idx];
+        auto const& sc_up = r_->cch_sc_up_[rank][t_idx];
+        auto const& sc_down = r_->cch_sc_down_[rank][t_idx];
+
+        utl::verify(r_->node_importance_[target] > rank, 
+                    "[TARGET RANK VERIFY] Found importance {} of {} as target of node {} ({})",
+                    r_->node_importance_[target], w.node_to_osm_[target], w.node_to_osm_[node], rank);
+        
+        utl::verify((!sc_up.is_valid() && cost_up == osr::kInfeasible) ||
+                    (sc_up.is_valid() && cost_up != osr::kInfeasible),
+                    "[SC COST VERIFY UP] Got cost {} and valid shortcut: {} from {} to {}", 
+                    cost_up, sc_up.is_valid(), w.node_to_osm_[node], w.node_to_osm_[target]);
+
+        utl::verify((!sc_down.is_valid() && cost_down == osr::kInfeasible) ||
+                    (sc_down.is_valid() && cost_down != osr::kInfeasible),
+                    "[SC COST VERIFY DOWN] Got cost {} and valid shortcut: {} from {} to {}",
+                    cost_down, sc_down.is_valid(), w.node_to_osm_[node], w.node_to_osm_[target]);
+
+        utl::verify((sc_up.entry_node_.n_ == node && sc_up.exit_node_.n_ == target) ||
+                    (cost_up == osr::kInfeasible && sc_up.entry_node_.n_ == osr::node_idx_t::invalid() &&
+                     sc_up.exit_node_.n_ == osr::node_idx_t::invalid()), 
+                    "[SC POINT VERIFY UP] Expected entry {} but got {} and exit {} but got {}",
+                    w.node_to_osm_[node], w.node_to_osm_[sc_up.entry_node_.n_], w.node_to_osm_[target],
+                    w.node_to_osm_[sc_up.exit_node_.n_]);
+        
+        utl::verify((sc_down.entry_node_.n_ == target && sc_down.exit_node_.n_ == node) ||
+                    (cost_down == osr::kInfeasible && sc_down.entry_node_.n_ == osr::node_idx_t::invalid() &&
+                     sc_down.exit_node_.n_ == osr::node_idx_t::invalid()),
+                    "[SC POINT VERIFY DOWN] Expected entry {} but got {} and exit {} but got {}",
+                    w.node_to_osm_[target], w.node_to_osm_[sc_down.entry_node_.n_], w.node_to_osm_[node],
+                    w.node_to_osm_[sc_down.exit_node_.n_]);
+        
+        if (cost_up != r_->sc_costs_up_[rank][t_idx]) {
+          std::cout << "[COST UP] Got new costs: " << cost_up << " and old costs: " 
+                    << r_->sc_costs_up_[rank][t_idx] << " from " << w.node_to_osm_[node] 
+                    << " to " << w.node_to_osm_[target] << "\n"; 
         }
-
-        auto const& sc_old = r_->sc_up_[rank][t_idx];
-        auto const& sc_new = r_->cch_sc_up_[rank][t_idx];
-
-        auto const new_way = r_->node_ways_[sc_new.entry_node_.n_][sc_new.entry_node_.way_];
-        utl::verify(new_way == sc_old.ways_.back(), 
-                    "[SC UP] Expected way {} but got {} between {} and {}",
-                    w.way_osm_idx_[sc_old.ways_.back()], w.way_osm_idx_[new_way], 
-                    w.node_to_osm_[sc_new.entry_node_.n_], w.node_to_osm_[sc_new.exit_node_.n_]);
       }
     }
   }

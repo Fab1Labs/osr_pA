@@ -19,9 +19,8 @@ struct target_node {
     };
   }
 
-  bool valid() const {
-    return n_ != osr::node_idx_t::invalid() &&
-           way_ != osr::way_pos_t{0U};
+  bool is_valid() const {
+    return n_ != osr::node_idx_t::invalid();
   }
 
   osr::node_idx_t n_;
@@ -41,8 +40,8 @@ struct packed_shortcut {
     };
   }
 
-  bool valid() const {
-    return entry_node_.valid() && exit_node_.valid() && 
+  bool is_valid() const {
+    return entry_node_.is_valid() && exit_node_.is_valid() && 
            u_turn_penalty_ != osr::kInfeasible;
   }
 
