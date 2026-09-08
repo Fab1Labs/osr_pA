@@ -183,10 +183,10 @@ struct bidir_dijkstra {
     if(kGplus) {
       auto const& curr_importance = r.node_importance_[curr.n_];
       auto const& targets = r.sc_targets_[curr_importance];
-      auto const& sc_costs = is_fwd ? r.sc_costs_up_[curr_importance] 
-                                 : r.sc_costs_down_[curr_importance];
-      auto const& sc_properties = is_fwd ? r.sc_up_[curr_importance]
-                                      : r.sc_down_[curr_importance];
+      auto const& sc_costs = is_fwd ? r.cch_cost_up_[curr_importance] 
+                                 : r.cch_cost_down_[curr_importance];
+      auto const& sc_properties = is_fwd ? r.cch_sc_up_[curr_importance]
+                                      : r.cch_sc_down_[curr_importance];
 
       // add all shortcuts to the queue:
       for (auto [target, cost, property] : utl::zip(targets, sc_costs, sc_properties)) {
@@ -196,23 +196,27 @@ struct bidir_dijkstra {
           }
           continue;
         }
-        if (check_restrictions<PathDir>(r, curr, r.get_way_pos(curr.n_, property.ways_[0]))) {
+
+        auto const& entry_node = is_fwd ? property.entry_node_ : property.exit_node_;
+        auto const& exit_node = is_fwd ? property.exit_node_ : property.entry_node_;
+
+        if (check_restrictions<PathDir>(r, curr, entry_node.way_)) {
           if constexpr (kDebug) {
             std::cout << "  REJECTED: " << target << " with restriction\n";
           }
           // add possible u turn here to enter the shortcut correctly
           continue;
         }
-        utl::verify(target == property.nodes_.back(), 
+        utl::verify(target == exit_node.n_, 
                     "Got target: {} but exptected: {}",
-                    property.nodes_.back(), target);
-        utl::verify(cost == property.get_path_cost(), 
-                    "Got costs: {} but exptected: {}",
-                    property.get_path_cost(), cost);
+                    exit_node.n_, target);
+        utl::verify(curr.n_ == entry_node.n_,
+                    "Got entry: {} but expected: {}",
+                    entry_node.n_, curr.n_);
 
         auto neighbor_cost = osr::clamp_cost(static_cast<std::uint64_t>(cost) + curr_cost);
-        if (curr.way_ == r.get_way_pos(curr.n_, property.ways_[0]) && 
-            curr.dir_ == osr::opposite(property.dirs_[0])) {
+        if (curr.way_ == entry_node.way_ && 
+            curr.dir_ == osr::opposite(entry_node.dir_)) {
           neighbor_cost += params.uturn_penalty_;
         }
 
@@ -225,42 +229,40 @@ struct bidir_dijkstra {
           break;
         }
 
-        auto const neighbor = typename P::node{
-            target, r.get_way_pos(target, property.ways_.back()), property.dirs_.back()
-        };
+        auto const neighbor = typename P::node{target, exit_node.way_, exit_node.dir_};
 
-        if constexpr (kDebug) {
-          auto path_cost = curr_cost;
-          for (auto [idx, node] : utl::enumerate(property.nodes_)) {
-            path_cost += property.costs_[idx];
-            auto const path_node = typename P::node{
-                node, r.get_way_pos(node, property.ways_[idx]), property.dirs_[idx]
-            };
-            if (node == property.nodes_.back()) {
-              std::cout << "  NEIGHBOR ";
-            } else {
-              std::cout << "  -> ";
-            }
-            path_node.print(std::cout, w);
-            std::cout << " IMPORTANCE: " << r.node_importance_[node];
-            if (node == property.nodes_.back()) {
-              std::cout << " COST: " << neighbor_cost;
-            } else {
-              std::cout << " COST: " << path_cost;
-            }
-            std::cout << " WAY: " << property.ways_[idx];
+        // if constexpr (kDebug) {
+        //   auto path_cost = curr_cost;
+        //   for (auto [idx, node] : utl::enumerate(property.nodes_)) {
+        //     path_cost += property.costs_[idx];
+        //     auto const path_node = typename P::node{
+        //         node, r.get_way_pos(node, property.ways_[idx]), property.dirs_[idx]
+        //     };
+        //     if (node == property.nodes_.back()) {
+        //       std::cout << "  NEIGHBOR ";
+        //     } else {
+        //       std::cout << "  -> ";
+        //     }
+        //     path_node.print(std::cout, w);
+        //     std::cout << " IMPORTANCE: " << r.node_importance_[node];
+        //     if (node == property.nodes_.back()) {
+        //       std::cout << " COST: " << neighbor_cost;
+        //     } else {
+        //       std::cout << " COST: " << path_cost;
+        //     }
+        //     std::cout << " WAY: " << property.ways_[idx];
 
-            if (node != property.nodes_.back()) {
-              std::cout << "\n";
-            }
-          }
-        }
+        //     if (node != property.nodes_.back()) {
+        //       std::cout << "\n";
+        //     }
+        //   }
+        // }
 
         if (costs[neighbor.get_key()].update(
             l, neighbor, neighbor_cost, curr)) {
           auto const hashmap_cost = costs.find(neighbor.get_key());
           auto next = label{neighbor, static_cast<osr::cost_t>(neighbor_cost)};
-          next.track(l, r, property.ways_.back(), neighbor.get_node(), false);
+          next.track(l, r, r.node_ways_[target][exit_node.way_], neighbor.get_node(), false);
           utl::verify(hashmap_cost->second.cost(neighbor) == neighbor_cost, 
               "Expected costs {} but got {}", neighbor_cost, hashmap_cost->second.cost(neighbor));
           utl::verify(get_cost<PathDir>(neighbor) == neighbor_cost,

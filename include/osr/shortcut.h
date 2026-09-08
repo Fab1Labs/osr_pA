@@ -11,6 +11,7 @@
 namespace cch {
 
 struct target_node {
+  friend bool operator==(target_node, target_node) = default;
   static constexpr target_node invalid() noexcept {
     return target_node{
       .n_ = osr::node_idx_t::invalid(),

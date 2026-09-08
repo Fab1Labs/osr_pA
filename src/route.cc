@@ -854,7 +854,7 @@ std::optional<path> route_cch_bidir_dijkstra(typename P::parameters const& param
       }
 
       //reconstruct the path:
-      return reconstruct_cch_bidir<P>(params, w, l, blocked, sharing, elevations, b, from,
+      return reconstruct_bidir<P>(params, w, l, blocked, sharing, elevations, b, from,
                                   to, start, end, dir);
     }  
   }

@@ -91,6 +91,102 @@ TEST(extract, contraction_order) {
   ASSERT_TRUE(eq);
 }
 
+TEST(extract, pack_shortcuts) {
+  auto const data_dir = "test/aachen.osm.pbf";
+  auto p = fs::temp_directory_path() / "osr_test";
+  auto ec = std::error_code{};
+  fs::remove_all(p, ec);
+  fs::create_directories(p, ec);
+
+  if (!fs::exists(data_dir)) {
+    GTEST_SKIP() << data_dir << " not found";
+  }
+
+  extract(false, data_dir, p, {});
+  auto w = ways{p, cista::mmap::protection::READ};
+  for (auto const [rank, node] : utl::enumerate(w.r_->contraction_order_)) {
+    for (auto [t_idx, target] : utl::enumerate(w.r_->sc_targets_[rank])) {
+
+      auto const& cost_up = w.r_->cch_cost_up_[rank][t_idx];
+      auto const& cost_down = w.r_->cch_cost_down_[rank][t_idx];
+      auto const& sc_up = w.r_->cch_sc_up_[rank][t_idx];
+      auto const& sc_down = w.r_->cch_sc_down_[rank][t_idx];
+
+      utl::verify(w.r_->node_importance_[target] > rank, 
+                  "[TARGET RANK VERIFY] Found importance {} of {} as target of node {} ({})",
+                  w.r_->node_importance_[target], w.node_to_osm_[target], w.node_to_osm_[node], rank);
+        
+      utl::verify((!sc_up.is_valid() && cost_up == osr::kInfeasible) ||
+                  (sc_up.is_valid() && cost_up != osr::kInfeasible),
+                  "[SC COST VERIFY UP] Got cost {} and valid shortcut: {} from {} to {}", 
+                  cost_up, sc_up.is_valid(), w.node_to_osm_[node], w.node_to_osm_[target]);
+
+      utl::verify((!sc_down.is_valid() && cost_down == osr::kInfeasible) ||
+                  (sc_down.is_valid() && cost_down != osr::kInfeasible),
+                  "[SC COST VERIFY DOWN] Got cost {} and valid shortcut: {} from {} to {}",
+                  cost_down, sc_down.is_valid(), w.node_to_osm_[node], w.node_to_osm_[target]);
+
+      utl::verify((sc_up.entry_node_.n_ == node && sc_up.exit_node_.n_ == target) ||
+                  (cost_up == osr::kInfeasible && sc_up.entry_node_.n_ == osr::node_idx_t::invalid() &&
+                   sc_up.exit_node_.n_ == osr::node_idx_t::invalid()), 
+                  "[SC POINT VERIFY UP] Expected entry {} but got {} and exit {} but got {}",
+                  w.node_to_osm_[node], w.node_to_osm_[sc_up.entry_node_.n_], w.node_to_osm_[target],
+                  w.node_to_osm_[sc_up.exit_node_.n_]);
+        
+      utl::verify((sc_down.entry_node_.n_ == target && sc_down.exit_node_.n_ == node) ||
+                  (cost_down == osr::kInfeasible && sc_down.entry_node_.n_ == osr::node_idx_t::invalid() &&
+                   sc_down.exit_node_.n_ == osr::node_idx_t::invalid()),
+                  "[SC POINT VERIFY DOWN] Expected entry {} but got {} and exit {} but got {}",
+                  w.node_to_osm_[target], w.node_to_osm_[sc_down.entry_node_.n_], w.node_to_osm_[node],
+                  w.node_to_osm_[sc_down.exit_node_.n_]);
+    } 
+  }
+}
+
+TEST(extract, unpack_shortcuts) {
+  auto const data_dir = "test/aachen.osm.pbf";
+  auto p = fs::temp_directory_path() / "osr_test";
+  auto ec = std::error_code{};
+  fs::remove_all(p, ec);
+  fs::create_directories(p, ec);
+
+  if (!fs::exists(data_dir)) {
+    GTEST_SKIP() << data_dir << " not found";
+  }
+
+  extract(false, data_dir, p, {});
+  auto w = ways{p, cista::mmap::protection::READ};
+
+  // test breacking condition upward:
+  auto const& sc_1 = w.r_->cch_sc_up_[3081][0];
+  auto const path_1 = w.r_->unpack_shortcut<true>(sc_1);
+  ASSERT_EQ(path_1.path_.size(), 1);
+  ASSERT_EQ(path_1.path_[0], sc_1.exit_node_);
+  ASSERT_EQ(path_1.costs_[0], w.r_->cch_cost_up_[3081][0]);
+  
+  // test breaking condition downward:
+  auto const& sc_2 = w.r_->cch_sc_down_[3081][0];
+  auto const path_2 = w.r_->unpack_shortcut<false>(sc_2);
+  ASSERT_EQ(path_2.path_[0], sc_2.exit_node_);
+  ASSERT_EQ(path_2.costs_[0], w.r_->cch_cost_down_[3081][0]);
+
+  // test shortcut with two direct shortcuts upward:
+  auto const& sc_3 = w.r_->cch_sc_up_[3082][0];
+  auto const path_3 = w.r_->unpack_shortcut<true>(sc_3);
+  ASSERT_EQ(path_3.path_[0], sc_2.exit_node_);
+  ASSERT_EQ(path_3.path_[1], w.r_->cch_sc_up_[3081][1].exit_node_);
+  ASSERT_EQ(path_3.costs_[0], w.r_->cch_cost_down_[3081][0]);
+  ASSERT_EQ(path_3.costs_[1], w.r_->cch_cost_up_[3081][1]);
+
+  // test shortcut with two direct shortcuts downward:
+  auto const& sc_4 = w.r_->cch_sc_down_[3082][0];
+  auto const path_4 = w.r_->unpack_shortcut<false>(sc_4);
+  ASSERT_EQ(path_4.path_[0], sc_1.exit_node_);
+  ASSERT_EQ(path_4.path_[1], w.r_->cch_sc_down_[3081][1].exit_node_);
+  ASSERT_EQ(path_4.costs_[0], w.r_->cch_cost_up_[3081][0]);
+  ASSERT_EQ(path_4.costs_[1], w.r_->cch_cost_down_[3081][1]);
+}
+
 TEST(extract, init_neighborhoods) {
   auto p = fs::temp_directory_path() / "osr_test";
   auto ec = std::error_code{};
@@ -225,154 +321,6 @@ TEST(extract, neighborhood_concat) {
     }
   }
 }
-
-// TEST(extract, customization) {
-//   auto p = fs::temp_directory_path() / "osr_test";
-//   auto ec = std::error_code{};
-//   fs::remove_all(p, ec);
-//   fs::create_directories(p, ec);
-
-//   extract(false, "test/aachen.osm.pbf", p, {});
-//   auto w = ways{p, cista::mmap::protection::READ};
-//   auto l = lookup{w, p, cista::mmap::protection::READ};
-//   auto mip_proc = cch::mip_proc{w};
-//   mip_proc.build_contraction_order();
-//   mip_proc.init_neighborhoods();
-//   mip_proc.contract_nodes();
-//   auto profile = search_profile::kCar;
-//   auto params = get_parameters(profile);
-//   auto customization = cch::basic_customization{w, mip_proc};
-//   customization.run(profile, params);
-//   auto failed = std::uint64_t{0U};
-//   auto correct = std::uint64_t{0U};
-//   auto total = std::uint64_t{0U};
-
-//   auto const dijkstra_cost = [&](node_idx_t const from, 
-//                                  node_idx_t const to, 
-//                                  direction dir, 
-//                                  cost_t const val_up,
-//                                  std::uint64_t& failed,
-//                                  std::uint64_t& correct) {
-//     auto const from_loc = location{w.get_node_pos(from)};
-//     auto const to_loc = location{w.get_node_pos(to)};
-
-//     auto const node_pinned_matches = 
-//       [&](location const& loc, node_idx_t const n, bool const reverse) {
-//         auto matches = l.match<car>(car::parameters{}, loc, reverse, dir,
-//                                     100, nullptr);
-//         std::erase_if(matches, [&](auto const& wc){
-//           return wc.left_.node_ != n && wc.right_.node_ != n;
-//         });
-//         return matches;
-//       };
-    
-//     auto const from_matches = node_pinned_matches(from_loc, from, false);
-//     auto const to_matches = node_pinned_matches(to_loc, to, true);
-//     auto const from_matches_span =
-//       std::span{begin(from_matches), end(from_matches)};
-//     auto const to_matches_span = 
-//       std::span{begin(to_matches), end(to_matches)};
-    
-//     auto const reference = [&]() {
-//       try {
-//         return route(car::parameters{}, w, l, search_profile::kCar, from_loc,
-//           to_loc, from_matches_span, to_matches_span, 2 * 3600U, dir, 
-//           nullptr, nullptr, nullptr, routing_algorithm::kDijkstra);
-//       } catch (std::exception const& ex) {
-//         fmt::println("dijkstra exception: {}", ex.what());
-//         throw ex;
-//       }
-//     }();
-
-//     if (reference.has_value()) {
-//       if (reference->cost_ == val_up) {
-//         ++correct;
-//       } else {
-//         ++failed;
-//       }
-//       ASSERT_EQ(reference->cost_, val_up);
-//     }
-//   };
-//   for (std::size_t nidx = 0; nidx <= 100; ++nidx) {
-//     auto const node = mip_proc.neighborhoods_[nidx];
-//     total += node.neighbors_.size();
-//     for (auto const neighbor : node.neighbors_) {
-//       auto const& neighbor_struct = mip_proc.all_neighbors_[neighbor];
-//       if (neighbor_struct.to_via_id_ == 0 &&
-//           neighbor_struct.to_neighbor_id_ == 0 &&
-//           neighbor_struct.via_ == osr::node_idx_t{0}) {
-//         auto const test_neighbor = mip_proc.all_neighbors_[neighbor];
-//         dijkstra_cost(node.node_, 
-//                 test_neighbor.neighbor_, 
-//                 //customization.dir_in_neighbor_[neighbor],
-//                 direction::kForward,
-//                 customization.neighbor_costs_up_[neighbor],
-//                 failed,
-//                 correct);
-//       }
-//     }
-//   }
-//   std::cout << "correct: " << correct << "\nfailed: " << failed << "\nof total: " << total;
-// }
-// TEST(extract, shortcuts) {
-//   auto p = fs::temp_directory_path() / "osr_test";
-//   auto ec = std::error_code{};
-//   fs::remove_all(p, ec);
-//   fs::create_directories(p, ec);
-
-//   extract(false, "test/aachen.osm.pbf", p, {});
-//   auto w = ways{p, cista::mmap::protection::READ};
-
-//   for (auto const s : w.r_->shortcut_properties_) {
-//     ASSERT_TRUE(w.r_->node_importance_[s.via_] < w.r_->node_importance_[s.lower_end_]);
-//     ASSERT_TRUE(w.r_->node_importance_[s.lower_end_] < w.r_->node_importance_[s.upper_end_]);
-//   }
-// }
-
-// TEST(extract, neighborhood_concat) {
-//   auto p = fs::temp_directory_path() / "osr_test";
-//   auto ec = std::error_code{};
-//   fs::remove_all(p, ec);
-//   fs::create_directories(p, ec);
-
-//   extract(false, "test/aachen.osm.pbf", p, {});
-
-//   auto w = ways{p, cista::mmap::protection::READ};
-//   auto mip = cch::mip_proc{w};
-
-//   auto ex1_n = cch::neighborhood(osr::node_idx_t{10}, static_cast<std::uint32_t>(13));
-//   auto ex2_n = cch::neighborhood(osr::node_idx_t{11}, static_cast<std::uint32_t>(12));
-
-//   mip.concatenate_neighbors(ex1_n, ex2_n);
-//   ASSERT_TRUE(ex2_n.neighbors_.empty());
-
-//   ex2_n.neighbors_.push_back(std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(28)));
-//   ex2_n.neighbors_.push_back(std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(2)));
-
-//   ex1_n.concatenate(ex2_n.neighbors_);
-//   ASSERT_EQ(ex1_n.neighbors_[0], std::pair(osr::node_idx_t{2}, static_cast<std::uint32_t>(28)));
-//   ASSERT_TRUE(ex1_n.neighbors_.size() == 1);
-// }
-
-
-// TEST(extract, elimination_tree) {
-//   auto p = fs::temp_directory_path() / "osr_test";
-//   auto ec = std::error_code{};
-//   fs::remove_all(p, ec);
-//   fs::create_directories(p, ec);
-
-//   extract(false, "test/aachen.osm.pbf", p, {});
-
-//   auto w = ways{p, cista::mmap::protection::READ};
-//   auto mip = cch::mip_proc{w};
-//   mip.build_contraction_order();
-//   mip.init_neighborhoods();
-//   mip.contract_nodes();
-
-//   // neighbor without any neighbors:
-//   ASSERT_EQ(mip.elimination_tree_[0], static_cast<std::uint32_t>(9663));
-//   ASSERT_EQ(mip.elimination_tree_[1], static_cast<std::uint32_t>(2));
-// }
 
 TEST(extract, contraction_order_new) {
   auto p = fs::temp_directory_path() / "osr_test";

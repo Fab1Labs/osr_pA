@@ -637,52 +637,6 @@ struct customization {
       }
     }
   }
-
-  void validate_neighbors(osr::ways const& w) {
-    for (auto const [rank, node] : utl::enumerate(r_->contraction_order_)) {
-      for (auto [t_idx, target] : utl::enumerate(r_->sc_targets_[rank])) {
-
-        auto const& cost_up = r_->cch_cost_up_[rank][t_idx];
-        auto const& cost_down = r_->cch_cost_down_[rank][t_idx];
-        auto const& sc_up = r_->cch_sc_up_[rank][t_idx];
-        auto const& sc_down = r_->cch_sc_down_[rank][t_idx];
-
-        utl::verify(r_->node_importance_[target] > rank, 
-                    "[TARGET RANK VERIFY] Found importance {} of {} as target of node {} ({})",
-                    r_->node_importance_[target], w.node_to_osm_[target], w.node_to_osm_[node], rank);
-        
-        utl::verify((!sc_up.is_valid() && cost_up == osr::kInfeasible) ||
-                    (sc_up.is_valid() && cost_up != osr::kInfeasible),
-                    "[SC COST VERIFY UP] Got cost {} and valid shortcut: {} from {} to {}", 
-                    cost_up, sc_up.is_valid(), w.node_to_osm_[node], w.node_to_osm_[target]);
-
-        utl::verify((!sc_down.is_valid() && cost_down == osr::kInfeasible) ||
-                    (sc_down.is_valid() && cost_down != osr::kInfeasible),
-                    "[SC COST VERIFY DOWN] Got cost {} and valid shortcut: {} from {} to {}",
-                    cost_down, sc_down.is_valid(), w.node_to_osm_[node], w.node_to_osm_[target]);
-
-        utl::verify((sc_up.entry_node_.n_ == node && sc_up.exit_node_.n_ == target) ||
-                    (cost_up == osr::kInfeasible && sc_up.entry_node_.n_ == osr::node_idx_t::invalid() &&
-                     sc_up.exit_node_.n_ == osr::node_idx_t::invalid()), 
-                    "[SC POINT VERIFY UP] Expected entry {} but got {} and exit {} but got {}",
-                    w.node_to_osm_[node], w.node_to_osm_[sc_up.entry_node_.n_], w.node_to_osm_[target],
-                    w.node_to_osm_[sc_up.exit_node_.n_]);
-        
-        utl::verify((sc_down.entry_node_.n_ == target && sc_down.exit_node_.n_ == node) ||
-                    (cost_down == osr::kInfeasible && sc_down.entry_node_.n_ == osr::node_idx_t::invalid() &&
-                     sc_down.exit_node_.n_ == osr::node_idx_t::invalid()),
-                    "[SC POINT VERIFY DOWN] Expected entry {} but got {} and exit {} but got {}",
-                    w.node_to_osm_[target], w.node_to_osm_[sc_down.entry_node_.n_], w.node_to_osm_[node],
-                    w.node_to_osm_[sc_down.exit_node_.n_]);
-        
-        if (cost_up != r_->sc_costs_up_[rank][t_idx]) {
-          std::cout << "[COST UP] Got new costs: " << cost_up << " and old costs: " 
-                    << r_->sc_costs_up_[rank][t_idx] << " from " << w.node_to_osm_[node] 
-                    << " to " << w.node_to_osm_[target] << "\n"; 
-        }
-      }
-    }
-  }
   
   cista::wrapped<osr::ways::routing>& r_;
 };

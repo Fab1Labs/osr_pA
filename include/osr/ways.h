@@ -353,6 +353,14 @@ struct ways {
       return IsUp ? sc_up_[from_rank][t_idx] : sc_down_[from_rank][t_idx];
     }
 
+    template<bool IsUp>
+    cch::packed_shortcut get_packed_shortcut(node_idx_t const& from,
+                                             node_idx_t const& to) const {
+      auto const& from_rank = node_importance_[from];
+      auto const t_idx = get_target_idx(from, to);
+      return IsUp ? cch_sc_up_[from_rank][t_idx] : cch_sc_down_[from_rank][t_idx];
+    }
+
     std::size_t get_target_idx(node_idx_t const& from,
                                node_idx_t const& to) const {
       auto const& from_rank = node_importance_[from];
@@ -379,7 +387,42 @@ struct ways {
     }
 
     template<bool IsUp>
-    cch::unpacked_shortcut unpack_shortcut(cch::packed_shortcut const&) const;
+    cch::unpacked_shortcut unpack_shortcut(cch::packed_shortcut const& sc) const {  
+      // checke ob der shortcut eine echte Kante ist:
+      if (cch_true_edge(sc)) {
+        auto unpacked_sc = cch::unpacked_shortcut{
+          .path_ = {},
+          .costs_ = {}
+        };
+    
+        auto const& entry_rank = IsUp ? node_importance_[sc.entry_node_.n_] :
+                                        node_importance_[sc.exit_node_.n_];
+        auto const& target_idx = IsUp ? get_target_idx(sc.entry_node_.n_, sc.exit_node_.n_) :
+                                        get_target_idx(sc.exit_node_.n_, sc.entry_node_.n_);
+        auto const& edge_cost = IsUp ? cch_cost_up_[entry_rank][target_idx] + sc.u_turn_penalty_ :
+                                       cch_cost_down_[entry_rank][target_idx];
+        unpacked_sc.costs_.push_back(edge_cost);
+        unpacked_sc.path_.push_back(sc.exit_node_);
+
+        utl::verify(edge_cost != osr::kInfeasible, 
+                    "[unpack shortcut] found invalid costs during unpacking");
+
+        return unpacked_sc;
+      }
+
+      // Falls keine direkte Kante, entpacke rekursiv weiter
+      auto const& up_part = IsUp ? cch_sc_up_[sc.via_rank_][sc.up_] :
+                                   cch_sc_down_[sc.via_rank_][sc.down_];
+      auto const& down_part = IsUp ? cch_sc_down_[sc.via_rank_][sc.down_] :
+                                     cch_sc_up_[sc.via_rank_][sc.up_];
+
+      auto unpacked_up_part = this->unpack_shortcut<IsUp>(up_part);
+      auto unpacked_down_part = this->unpack_shortcut<!IsUp>(down_part);
+
+      unpacked_down_part.append(unpacked_up_part);
+
+      return unpacked_down_part;
+    }
 
     static cista::wrapped<routing> read(std::filesystem::path const&);
     void write(std::filesystem::path const&) const;
