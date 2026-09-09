@@ -229,33 +229,36 @@ path reconstruct_bidir(typename P::parameters const& params,
   auto forward_segments = std::vector<path::segment>{};
   auto forward_dist = 0.0;
 
-  return path{.cost_ = b.mu_,
-              .dist_ = 0,
-              .elevation_ = elevation_storage::elevation{},
-              .segments_ = forward_segments};
+  // return path{.cost_ = b.mu_,
+  //             .dist_ = 0,
+  //             .elevation_ = elevation_storage::elevation{},
+  //             .segments_ = forward_segments};
 
   while (true) {
     auto const& entry = b.cost_f_.at(forward_n.get_key());
     auto const shortcut_entry_fw = entry.pred(forward_n);
     if (shortcut_entry_fw.has_value()) {
       auto const sc_start = std::move(*shortcut_entry_fw);
-      auto const& shortcut = w.r_->get_packed_shortcut<true>(sc_start.n_, forward_n.n_);
-      auto const path = w.r_->unpack_shortcut<true>(shortcut);
-
+      auto const& shortcut = w.r_->get_packed_shortcut<true>(sc_start.n_, forward_n.n_);;
+      auto const path = dir == direction::kForward ? w.r_->unpack_shortcut<direction::kForward, true>(shortcut)
+                                                   : w.r_->unpack_shortcut<direction::kBackward, true>(shortcut);
       if (path.size() > 1) {
         for (std::size_t i = (path.size() - 2); i >= 0; --i) {
           auto pred = typename P::node{path[i].n_, path[i].way_, path[i].dir_};
-          auto step_cost = w.r_->get_edge_cost(pred.n_, forward_n.n_);
-          if (w.r_->node_ways_[pred.n_][pred.way_] == w.r_->node_ways_[forward_n.n_][forward_n.way_] &&
-              pred.dir_ == opposite(forward_n.dir_)) {
-            step_cost += params.uturn_penalty_;
-          }
+          auto step_cost = w.r_->get_edge_cost<true>(pred.n_, pred.way_, pred.dir_, 
+                                                     forward_n.n_, params.uturn_penalty_);
           forward_dist += add_path<P>(params, w, *w.r_, blocked, sharing, elevations, pred,
                                       forward_n, step_cost, forward_segments, dir);
           forward_n = pred;
+          if (i == 0) { break; }
         }
       }
-      auto step_cost = w.r_->get_edge_cost(sc_start.n_, path[0].n_);
+
+      auto step_cost = w.r_->get_edge_cost<true>(sc_start.n_, sc_start.way_, sc_start.dir_, 
+                                                 forward_n.n_, params.uturn_penalty_);
+      utl::verify(sc_start.n_ == shortcut.entry_node_.n_, 
+                  "[PATH REC FW] Sc start did not match shortcut entry node");
+
       forward_dist += add_path<P>(params, w, *w.r_, blocked, sharing, elevations, sc_start,
                                   forward_n, step_cost, forward_segments, dir);
       forward_n = sc_start;
@@ -285,18 +288,36 @@ path reconstruct_bidir(typename P::parameters const& params,
 
   while (true) {
     auto const& entry = b.cost_b_.at(backward_n.get_key());
-    auto const pred = entry.pred(backward_n);
-    if (pred.has_value()) {
-      auto const exptected_cost =
-          static_cast<cost_t>(entry.cost(backward_n) -
-                              b.template get_cost<direction::kBackward>(*pred));
-      backward_dist += add_path<P>(params, w, *w.r_, blocked, sharing, 
-                                   elevations, *pred, backward_n, exptected_cost,
-                                   backward_segments, opposite(dir));
+    auto const shortcut_entry_bw = entry.pred(backward_n);
+    if (shortcut_entry_bw.has_value()) {
+      auto const sc_start = std::move(*shortcut_entry_bw);
+      auto const& shortcut = w.r_->get_packed_shortcut<false>(sc_start.n_, backward_n.n_);
+      auto path = dir == direction::kForward ? w.r_->unpack_shortcut<direction::kBackward, false>(shortcut)
+                                             : w.r_->unpack_shortcut<direction::kForward, false>(shortcut);
+      std::reverse(path.begin(), path.end());
+      if (path.size() > 1) {
+        for (std::size_t i = (path.size() - 2); i >= 0; --i) {
+          auto pred = typename P::node{path[i].n_, path[i].way_, path[i].dir_};
+          auto step_cost = w.r_->get_edge_cost<false>(pred.n_, pred.way_, pred.dir_, 
+                                                     backward_n.n_, params.uturn_penalty_);
+          backward_dist += add_path<P>(params, w, *w.r_, blocked, sharing, elevations, pred,
+                                       backward_n, step_cost, backward_segments, opposite(dir));
+          backward_n = pred;
+          if (i == 0) { break; }
+        }
+      }
+
+      auto step_cost = w.r_->get_edge_cost<false>(sc_start.n_, sc_start.way_, sc_start.dir_, 
+                                                  backward_n.n_, params.uturn_penalty_);
+      utl::verify(sc_start.n_ == shortcut.exit_node_.n_, 
+                  "[PATH REC BW] Sc start did not match shortcut entry node");
+
+      backward_dist += add_path<P>(params, w, *w.r_, blocked, sharing, elevations, sc_start,
+                                   backward_n, step_cost, backward_segments, opposite(dir));
+      backward_n = sc_start;
     } else {
       break;
     }
-    backward_n = *pred;
   }
 
   auto const& dest_node_candidate = 

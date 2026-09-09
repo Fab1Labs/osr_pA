@@ -143,7 +143,7 @@ TEST(extract, pack_shortcuts) {
   }
 }
 
-TEST(extract, unpack_bigger_shortcut) {
+TEST(extract, unpack_bigger_shortcut_forward) {
   auto const data_dir = "test/darmstadt-bismarckstr.osm.pbf";
   auto p = fs::temp_directory_path() / "osr_test";
   auto ec = std::error_code{};
@@ -158,43 +158,43 @@ TEST(extract, unpack_bigger_shortcut) {
   auto w = ways{p, cista::mmap::protection::READ};
 
   auto const& sc_1_up = w.r_->cch_sc_up_[83][0]; // 83 -> 134
-  auto const path_1_up = w.r_->unpack_shortcut<true>(sc_1_up);
+  auto const path_1_up = w.r_->unpack_shortcut<direction::kForward, true>(sc_1_up);
   ASSERT_EQ(path_1_up.size(), 1);
   ASSERT_EQ(path_1_up[0], sc_1_up.exit_node_);
 
   auto const& sc_1_down = w.r_->cch_sc_down_[83][0];
-  auto const path_1_down = w.r_->unpack_shortcut<false>(sc_1_down);
+  auto const path_1_down = w.r_->unpack_shortcut<direction::kForward, false>(sc_1_down);
   ASSERT_EQ(path_1_down.size(), 1);
   ASSERT_EQ(path_1_down[0], sc_1_down.exit_node_);
 
   auto const& sc_3_up = w.r_->cch_sc_up_[134][2];
-  auto const path_3_up = w.r_->unpack_shortcut<true>(sc_3_up);
+  auto const path_3_up = w.r_->unpack_shortcut<direction::kForward, true>(sc_3_up);
   ASSERT_EQ(path_3_up.size(), 2);
   ASSERT_EQ(path_3_up[0], w.r_->cch_sc_down_[83][0].exit_node_);
   ASSERT_EQ(path_3_up[1], w.r_->cch_sc_up_[83][1].exit_node_);
 
   auto const& sc_3_down = w.r_->cch_sc_down_[134][2];
-  auto const path_3_down = w.r_->unpack_shortcut<false>(sc_3_down);
+  auto const path_3_down = w.r_->unpack_shortcut<direction::kForward, false>(sc_3_down);
   ASSERT_EQ(path_3_up.size(), 2);
   ASSERT_EQ(path_3_down[0], w.r_->cch_sc_down_[83][1].exit_node_);
   ASSERT_EQ(path_3_down[1], w.r_->cch_sc_up_[83][0].exit_node_);
 
   auto const& sc_8_up = w.r_->cch_sc_up_[137][2];
-  auto const path_8_up = w.r_->unpack_shortcut<true>(sc_8_up);
+  auto const path_8_up = w.r_->unpack_shortcut<direction::kForward, true>(sc_8_up);
   ASSERT_EQ(path_8_up.size(), 3);
   ASSERT_EQ(path_8_up[0], w.r_->cch_sc_down_[134][1].exit_node_);
   ASSERT_EQ(path_8_up[1], w.r_->cch_sc_down_[83][0].exit_node_);
   ASSERT_EQ(path_8_up[2], w.r_->cch_sc_up_[83][1].exit_node_);
 
   auto const& sc_8_down = w.r_->cch_sc_down_[137][2];
-  auto const path_8_down = w.r_->unpack_shortcut<false>(sc_8_down);
+  auto const path_8_down = w.r_->unpack_shortcut<direction::kForward, false>(sc_8_down);
   ASSERT_EQ(path_8_down.size(), 3);
   ASSERT_EQ(path_8_down[0], w.r_->cch_sc_down_[83][1].exit_node_);
   ASSERT_EQ(path_8_down[1], w.r_->cch_sc_up_[83][0].exit_node_);
   ASSERT_EQ(path_8_down[2], w.r_->cch_sc_up_[134][1].exit_node_);
 
   auto const& sc_9_up = w.r_->cch_sc_up_[168][5];
-  auto const path_9_up = w.r_->unpack_shortcut<true>(sc_9_up);
+  auto const path_9_up = w.r_->unpack_shortcut<direction::kForward, true>(sc_9_up);
   ASSERT_EQ(path_9_up.size(), 5);
   ASSERT_EQ(path_9_up[0], w.r_->cch_sc_down_[83][1].exit_node_);
   ASSERT_EQ(path_9_up[1], w.r_->cch_sc_up_[83][0].exit_node_);
@@ -203,7 +203,7 @@ TEST(extract, unpack_bigger_shortcut) {
   ASSERT_EQ(path_9_up[4], w.r_->cch_sc_up_[133][3].exit_node_);
 
   auto const& sc_9_down = w.r_->cch_sc_down_[168][5];
-  auto const path_9_down = w.r_->unpack_shortcut<false>(sc_9_down);
+  auto const path_9_down = w.r_->unpack_shortcut<direction::kForward, false>(sc_9_down);
   ASSERT_EQ(path_9_down.size(), 5);
   ASSERT_EQ(path_9_down[0], w.r_->cch_sc_down_[133][3].exit_node_);
   ASSERT_EQ(path_9_down[1], w.r_->cch_sc_up_[133][0].exit_node_);
@@ -212,160 +212,41 @@ TEST(extract, unpack_bigger_shortcut) {
   ASSERT_EQ(path_9_down[4], w.r_->cch_sc_up_[83][1].exit_node_);
 }
 
-TEST(extract, init_neighborhoods) {
+TEST(extract, unpack_bigger_shortcut_backward) {
+  auto const data_dir = "test/darmstadt-bismarckstr.osm.pbf";
   auto p = fs::temp_directory_path() / "osr_test";
   auto ec = std::error_code{};
   fs::remove_all(p, ec);
   fs::create_directories(p, ec);
 
-  extract(false, "test/aachen.osm.pbf", p, {});
-
-  auto w = ways{p, cista::mmap::protection::READ};
-  auto mip = cch::mip_proc{w};
-  mip.build_contraction_order();
-  mip.init_neighborhoods();
-
-  // Test empty neighborhood: Well at the "Aachen" name on the map
-  ASSERT_EQ(mip.neighborhoods_[19851].node_, osr::node_idx_t{7884});
-  ASSERT_TRUE(mip.neighborhoods_[19851].neighbors_.empty());
-
-  // Test neighborhood with one higher neighbor: Aachen - Dennewartstrasse
-  ASSERT_EQ(mip.neighborhoods_[1685].node_, osr::node_idx_t{17169});
-  ASSERT_EQ(mip.neighborhoods_[1685].neighbors_.size(), 0); // <- falls mit accessible check getestet wird
-  // ASSERT_EQ(mip.neighborhoods_[1685].neighbors_.size(), 1); // <- falls ohne accessible check getestet wird
-  // ASSERT_TRUE(test_neighbors(mip.all_neighbors_,
-  //                            mip.neighborhoods_[1685].neighbors_[0], 
-  //                            osr::node_idx_t{17170}, 
-  //                            static_cast<std::uint32_t>(1686), 
-  //                            osr::way_idx_t{13036}));
-  //ASSERT_EQ(mip.all_neighbors_[1685].neighbors_[0], std::tuple(osr::node_idx_t{17170}, static_cast<std::uint32_t>(1686), false, osr::node_idx_t{17170}, osr::way_idx_t{13036}, osr::way_idx_t{13036}));
-
-  // Test neighborhood with multiple neighbors: Aachen - Gabelung Büchel
-  ASSERT_EQ(mip.neighborhoods_[14241].node_, osr::node_idx_t{14653});
-  ASSERT_EQ(mip.neighborhoods_[14245].node_, osr::node_idx_t{2761});
-  ASSERT_EQ(mip.neighborhoods_[14251].node_, osr::node_idx_t{201});
-  ASSERT_EQ(mip.neighborhoods_[14283].node_, osr::node_idx_t{200});
-  ASSERT_EQ(mip.neighborhoods_[14241].neighbors_.size(), 3);
-  
-  ASSERT_TRUE(test_neighbors(mip.all_neighbors_,
-                             mip.neighborhoods_[14241].neighbors_[0], 
-                             osr::node_idx_t{201}, 
-                             static_cast<std::uint32_t>(14251), 
-                             osr::way_idx_t{6255}));
-  ASSERT_TRUE(test_neighbors(mip.all_neighbors_,
-                             mip.neighborhoods_[14241].neighbors_[1], 
-                             osr::node_idx_t{2761}, 
-                             static_cast<std::uint32_t>(14245), 
-                             osr::way_idx_t{6255}));
-  ASSERT_TRUE(test_neighbors(mip.all_neighbors_,
-                             mip.neighborhoods_[14241].neighbors_[2], 
-                             osr::node_idx_t{200}, 
-                             static_cast<std::uint32_t>(14283), 
-                             osr::way_idx_t{10495}));
-  // ASSERT_EQ(mip.all_neighbors_[14241].neighbors_[0], std::tuple(osr::node_idx_t{201}, static_cast<std::uint32_t>(14251), false, osr::node_idx_t{201}, osr::way_idx_t{6255}, osr::way_idx_t{6255}));
-  // ASSERT_EQ(mip.all_neighbors_[14241].neighbors_[1], std::tuple(osr::node_idx_t{2761}, static_cast<std::uint32_t>(14245), false, osr::node_idx_t{2761}, osr::way_idx_t{6255}, osr::way_idx_t{6255}));
-  // ASSERT_EQ(mip.all_neighbors_[14241].neighbors_[2], std::tuple(osr::node_idx_t{200}, static_cast<std::uint32_t>(14283), false, osr::node_idx_t{200}, osr::way_idx_t{10495}, osr::way_idx_t{10495}));
-
-}
-
-TEST(extract, sort_neighbors) {
-  auto p = fs::temp_directory_path() / "osr_test";
-  auto ec = std::error_code{};
-  fs::remove_all(p, ec);
-  fs::create_directories(p, ec);
-
-  //extract(false, "test/aachen.osm.pbf", p, {});
-
-  osr::vec<cch::neighbor> all_neighbors;
-  auto ex1_n = cch::neighborhood{osr::node_idx_t{3}, static_cast<std::uint32_t>(23)};
-
-  all_neighbors.push_back(cch::neighbor{.neighbor_ = osr::node_idx_t{1}, 
-                                           .rank_ = static_cast<std::uint32_t>(36), 
-                                           .via_ = osr::node_idx_t{3}, 
-                                           .to_via_id_ = 0, 
-                                           .to_neighbor_id_ = 0, 
-                                           .edge_ = osr::way_idx_t{1},
-                                           .in_way_idx_ = 0,
-                                           .dir_ = osr::direction::kForward});
-  all_neighbors.push_back(cch::neighbor{.neighbor_ = osr::node_idx_t{2}, 
-                                           .rank_ = static_cast<std::uint32_t>(28), 
-                                           .via_ = osr::node_idx_t{3}, 
-                                           .to_via_id_ = 0,
-                                           .to_neighbor_id_ = 0,
-                                           .edge_ = osr::way_idx_t{2},
-                                           .in_way_idx_ = 0,
-                                           .dir_ = osr::direction::kForward});
-  all_neighbors.push_back(cch::neighbor{.neighbor_ = osr::node_idx_t{4}, 
-                                           .rank_ = static_cast<std::uint32_t>(27), 
-                                           .via_ = osr::node_idx_t{3}, 
-                                           .to_via_id_ = 0,
-                                           .to_neighbor_id_ = 0,
-                                           .edge_ = osr::way_idx_t{4},
-                                           .in_way_idx_ = 0,
-                                           .dir_ = osr::direction::kForward});
-  
-  ex1_n.neighbors_.push_back(osr::neighbor_idx_t{0});
-  ex1_n.neighbors_.push_back(osr::neighbor_idx_t{1});
-  ex1_n.neighbors_.push_back(osr::neighbor_idx_t{2});
-  ex1_n.neighbors_.push_back(osr::neighbor_idx_t{1});
-  //ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{1}, static_cast<std::uint32_t>(36), false, osr::node_idx_t{3}, osr::way_idx_t{1}, osr::way_idx_t{1}));
-  // ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{2}, static_cast<std::uint32_t>(28), false, osr::node_idx_t{3}, osr::way_idx_t{2}, osr::way_idx_t{2}));
-  // ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{4}, static_cast<std::uint32_t>(27), false, osr::node_idx_t{3}, osr::way_idx_t{4}, osr::way_idx_t{4}));
-  // ex1_n.neighbors_.push_back(std::tuple(osr::node_idx_t{2}, static_cast<std::uint32_t>(28), false, osr::node_idx_t{3}, osr::way_idx_t{2}, osr::way_idx_t{2}));
-
-  osr::vec<osr::neighbor_idx_t> ex1_n_exp;
-  ex1_n_exp.push_back(osr::neighbor_idx_t{2});
-  ex1_n_exp.push_back(osr::neighbor_idx_t{1});
-  ex1_n_exp.push_back(osr::neighbor_idx_t{0});
-
-  // ex1_n_exp.push_back(std::tuple(osr::node_idx_t{4}, static_cast<std::uint32_t>(27), false, osr::node_idx_t{3}, osr::way_idx_t{4}, osr::way_idx_t{4}));
-  // ex1_n_exp.push_back(std::tuple(osr::node_idx_t{2}, static_cast<std::uint32_t>(28), false, osr::node_idx_t{3}, osr::way_idx_t{2}, osr::way_idx_t{2}));
-  // ex1_n_exp.push_back(std::tuple(osr::node_idx_t{1}, static_cast<std::uint32_t>(36), false, osr::node_idx_t{3}, osr::way_idx_t{1}, osr::way_idx_t{1}));
-
-  ex1_n.sort_neighbors(all_neighbors);
-  ASSERT_EQ(ex1_n.neighbors_, ex1_n_exp);
-}
-
-TEST(extract, neighborhood_concat) {
-  auto p = fs::temp_directory_path() / "osr_test";
-  auto ec = std::error_code{};
-  fs::remove_all(p, ec);
-  fs::create_directories(p, ec);
-
-  extract(false, "test/aachen.osm.pbf", p, {});
-
-  auto w = ways{p, cista::mmap::protection::READ};
-  auto mip = cch::mip_proc{w};
-  mip.build_contraction_order();
-  mip.init_neighborhoods();
-  mip.contract_nodes();
-
-  for (auto const n : mip.neighborhoods_) {
-    for (auto const neighbor : n.neighbors_){
-      ASSERT_TRUE(n.rank_ < mip.all_neighbors_[neighbor].rank_);
-    }
+  if (!fs::exists(data_dir)) {
+    GTEST_SKIP() << data_dir << " not found";
   }
-}
 
-TEST(extract, contraction_order_new) {
-  auto p = fs::temp_directory_path() / "osr_test";
-  auto ec = std::error_code{};
-  fs::remove_all(p, ec);
-  fs::create_directories(p, ec);
-
-  extract(false, "test/aachen.osm.pbf", p, {});
-
+  extract(false, data_dir, p, {});
   auto w = ways{p, cista::mmap::protection::READ};
-  auto con = cch::contraction{w.r_};
-  con.build_contraction_order();
 
-  bool eq = true;
-  for (auto const [rank, node] : utl::enumerate(w.r_->contraction_order_)) {
-    eq = eq && (static_cast<std::uint32_t>(rank) == w.r_->node_importance_[node]);
-  }
-  
-  ASSERT_TRUE(eq);
-  ASSERT_EQ(w.r_->contraction_order_.size(), 20063);
+  auto const& sc_1_up = w.r_->cch_sc_up_[83][0];
+  auto const path_1_up = w.r_->unpack_shortcut<direction::kBackward, true>(sc_1_up);
+  ASSERT_EQ(path_1_up.size(), 1);
+  ASSERT_EQ(path_1_up[0], w.r_->cch_sc_up_[83][0].entry_node_);
+
+  auto const& sc_1_down = w.r_->cch_sc_down_[83][0];
+  auto const path_1_down = w.r_->unpack_shortcut<direction::kBackward, false>(sc_1_down);
+  ASSERT_EQ(path_1_down.size(), 1);
+  ASSERT_EQ(path_1_down[0], sc_1_down.entry_node_);
+
+  auto const& sc_3_up = w.r_->cch_sc_up_[134][2];
+  auto const path_3_up = w.r_->unpack_shortcut<direction::kBackward, true>(sc_3_up);
+  ASSERT_EQ(path_3_up.size(), 2);
+  ASSERT_EQ(path_3_up[0], w.r_->cch_sc_down_[83][0].entry_node_);
+  ASSERT_EQ(path_3_up[1], w.r_->cch_sc_up_[83][1].entry_node_);
+
+  auto const& sc_3_down = w.r_->cch_sc_down_[134][2];
+  auto const path_3_down = w.r_->unpack_shortcut<direction::kBackward, false>(sc_3_down);
+  ASSERT_EQ(path_3_down.size(), 2);
+  ASSERT_EQ(path_3_down[0], w.r_->cch_sc_down_[83][1].entry_node_);
+  ASSERT_EQ(path_3_down[1], w.r_->cch_sc_up_[83][0].entry_node_);
 }
 
 TEST(extract, contraction_neighbor_init) {
@@ -481,117 +362,4 @@ TEST(shortcuts, extension) {
   ASSERT_EQ(valid_valid.costs_[0], osr::cost_t{3});
   ASSERT_EQ(valid_valid.costs_[1], osr::cost_t{4});
   ASSERT_EQ(valid_valid.get_path_cost(), osr::cost_t{7});
-}
-// TEST(extract, sc_properties_handling) {
-//   auto p = fs::temp_directory_path() / "osr_test";
-//   auto ec = std::error_code{};
-//   fs::remove_all(p, ec);
-//   fs::create_directories(p, ec);
-
-//   auto simple_case = cch::sc_properties{
-//     .nodes_ = {},
-//     .ways_ = {},
-//     .dirs_ = {},
-//     .costs_ = {}
-//   };
-
-//   simple_case.add(osr::node_idx_t{0}, osr::way_idx_t{0}, osr::direction::kForward, osr::cost_t{3});
-
-//   // Test correct initialization:
-//   ASSERT_EQ(simple_case.nodes_[0], osr::node_idx_t{0});
-//   ASSERT_EQ(simple_case.ways_[0], osr::way_idx_t{0});
-//   ASSERT_EQ(simple_case.dirs_[0], osr::direction::kForward);
-//   ASSERT_EQ(simple_case.costs_[0], osr::cost_t{3});
-
-//   // Test cost function:
-//   ASSERT_EQ(simple_case.get_cost(), osr::cost_t{3});
-
-//   // add a new shortcutpath to extend:
-//   auto appendice = cch::sc_properties{
-//     .nodes_ = {},
-//     .ways_ = {},
-//     .dirs_ = {},
-//     .costs_ = {}
-//   };
-//   appendice.add(osr::node_idx_t{1}, osr::way_idx_t{1}, osr::direction::kForward, osr::cost_t{4});
-
-//   auto combined = simple_case;
-//   combined.append(appendice);
-//   ASSERT_EQ(simple_case.nodes_.size(), 1);
-//   ASSERT_EQ(simple_case.ways_.size(), 1);
-//   ASSERT_EQ(simple_case.dirs_.size(), 1);
-//   ASSERT_EQ(simple_case.costs_.size(), 1);
-
-//   ASSERT_EQ(combined.nodes_.size(), 2);
-//   ASSERT_EQ(combined.nodes_[0], osr::node_idx_t{0});
-//   ASSERT_EQ(combined.nodes_[1], osr::node_idx_t{1});
-//   ASSERT_EQ(combined.ways_.size(), 2);
-//   ASSERT_EQ(combined.dirs_.size(), 2);
-//   ASSERT_EQ(combined.costs_.size(), 2);
-//   ASSERT_EQ(combined.costs_[0], osr::cost_t{3});
-//   ASSERT_EQ(combined.costs_[1], osr::cost_t{7});
-//   auto reverse_example = cch::sc_properties{
-//     .nodes_ = {},
-//     .ways_ = {},
-//     .dirs_ = {},
-//     .costs_ = {}
-//   };
-//   reverse_example.add(osr::node_idx_t{1}, osr::way_idx_t{1}, osr::direction::kForward, osr::cost_t{1});
-//   reverse_example.nodes_.push_back(osr::node_idx_t{2});
-//   reverse_example.nodes_.push_back(osr::node_idx_t{3});
-//   reverse_example.nodes_.push_back(osr::node_idx_t{4});
-//   reverse_example.nodes_.push_back(osr::node_idx_t{5});
-//   reverse_example.reverse_path(osr::node_idx_t{0});
-//   ASSERT_EQ(reverse_example.nodes_[0], osr::node_idx_t{4});
-//   ASSERT_EQ(reverse_example.nodes_[1], osr::node_idx_t{3});
-//   ASSERT_EQ(reverse_example.nodes_[2], osr::node_idx_t{2});
-//   ASSERT_EQ(reverse_example.nodes_[3], osr::node_idx_t{1});
-//   ASSERT_EQ(reverse_example.nodes_[4], osr::node_idx_t{0});
-
-//   reverse_example.costs_.push_back(osr::cost_t{3});
-//   reverse_example.costs_.push_back(osr::cost_t{5});
-//   reverse_example.costs_.push_back(osr::cost_t{7});
-//   reverse_example.transform_costs();
-//   ASSERT_EQ(reverse_example.costs_[0], osr::cost_t{2});
-//   ASSERT_EQ(reverse_example.costs_[1], osr::cost_t{4});
-//   ASSERT_EQ(reverse_example.costs_[2], osr::cost_t{6});
-//   ASSERT_EQ(reverse_example.costs_[3], osr::cost_t{7});
-
-//   simple_case.reverse_path(osr::node_idx_t{8});
-//   ASSERT_EQ(simple_case.nodes_.size(), 1);
-//   ASSERT_EQ(simple_case.nodes_[0], osr::node_idx_t{8});
-//   simple_case.transform_costs();
-//   ASSERT_EQ(simple_case.costs_.size(), 1);
-//   ASSERT_EQ(simple_case.costs_[0], osr::cost_t{3});
-
-//   auto invalid_case = cch::sc_properties{
-//     .nodes_ = {},
-//     .ways_ = {},
-//     .dirs_ = {},
-//     .costs_ = {}
-//   };
-//   invalid_case.add(osr::node_idx_t{0}, osr::way_idx_t::invalid(), 
-//       osr::direction::kForward, osr::kInfeasible);
-//   invalid_case.reverse_path(osr::node_idx_t{1});
-//   invalid_case.transform_costs();
-//   ASSERT_EQ(invalid_case.nodes_.size(), 1);
-//   ASSERT_EQ(invalid_case.nodes_.back(), osr::node_idx_t{1});
-//   ASSERT_EQ(invalid_case.costs_.size(), 1);
-//   ASSERT_EQ(invalid_case.costs_.back(), osr::kInfeasible);
-//   ASSERT_EQ(invalid_case.ways_[0], osr::way_idx_t::invalid());
-// }
-
-TEST(extract, find_way) {
-  auto p = fs::temp_directory_path() / "osr_test";
-  auto ec = std::error_code{};
-  fs::remove_all(p, ec);
-  fs::create_directories(p, ec);
-
-  extract(false, "test/darmstadt-bismarckstr.osm.pbf", p, {});
-  auto w = ways{p, cista::mmap::protection::READ};
-  auto customization = cch::customization(w.r_);
-
-  auto const way_data = customization.find_way(osr::node_idx_t{222}, osr::node_idx_t{188});
-  std::cout << "\nResults: " << way_data.way_ << " " << way_data.dir_ << " " << way_data.node_in_way_idx_;
-  ASSERT_EQ(way_data.way_, osr::way_idx_t{135});
 }
