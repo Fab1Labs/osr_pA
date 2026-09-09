@@ -184,9 +184,9 @@ struct bidir_dijkstra {
       auto const& curr_importance = r.node_importance_[curr.n_];
       auto const& targets = r.sc_targets_[curr_importance];
       auto const& sc_costs = is_fwd ? r.cch_cost_up_[curr_importance] 
-                                 : r.cch_cost_down_[curr_importance];
+                                    : r.cch_cost_down_[curr_importance];
       auto const& sc_properties = is_fwd ? r.cch_sc_up_[curr_importance]
-                                      : r.cch_sc_down_[curr_importance];
+                                         : r.cch_sc_down_[curr_importance];
 
       // add all shortcuts to the queue:
       for (auto [target, cost, property] : utl::zip(targets, sc_costs, sc_properties)) {

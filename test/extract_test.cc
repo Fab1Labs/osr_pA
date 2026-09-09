@@ -143,8 +143,8 @@ TEST(extract, pack_shortcuts) {
   }
 }
 
-TEST(extract, unpack_shortcuts) {
-  auto const data_dir = "test/aachen.osm.pbf";
+TEST(extract, unpack_bigger_shortcut) {
+  auto const data_dir = "test/darmstadt-bismarckstr.osm.pbf";
   auto p = fs::temp_directory_path() / "osr_test";
   auto ec = std::error_code{};
   fs::remove_all(p, ec);
@@ -157,34 +157,59 @@ TEST(extract, unpack_shortcuts) {
   extract(false, data_dir, p, {});
   auto w = ways{p, cista::mmap::protection::READ};
 
-  // test breacking condition upward:
-  auto const& sc_1 = w.r_->cch_sc_up_[3081][0];
-  auto const path_1 = w.r_->unpack_shortcut<true>(sc_1);
-  ASSERT_EQ(path_1.path_.size(), 1);
-  ASSERT_EQ(path_1.path_[0], sc_1.exit_node_);
-  ASSERT_EQ(path_1.costs_[0], w.r_->cch_cost_up_[3081][0]);
-  
-  // test breaking condition downward:
-  auto const& sc_2 = w.r_->cch_sc_down_[3081][0];
-  auto const path_2 = w.r_->unpack_shortcut<false>(sc_2);
-  ASSERT_EQ(path_2.path_[0], sc_2.exit_node_);
-  ASSERT_EQ(path_2.costs_[0], w.r_->cch_cost_down_[3081][0]);
+  auto const& sc_1_up = w.r_->cch_sc_up_[83][0]; // 83 -> 134
+  auto const path_1_up = w.r_->unpack_shortcut<true>(sc_1_up);
+  ASSERT_EQ(path_1_up.size(), 1);
+  ASSERT_EQ(path_1_up[0], sc_1_up.exit_node_);
 
-  // test shortcut with two direct shortcuts upward:
-  auto const& sc_3 = w.r_->cch_sc_up_[3082][0];
-  auto const path_3 = w.r_->unpack_shortcut<true>(sc_3);
-  ASSERT_EQ(path_3.path_[0], sc_2.exit_node_);
-  ASSERT_EQ(path_3.path_[1], w.r_->cch_sc_up_[3081][1].exit_node_);
-  ASSERT_EQ(path_3.costs_[0], w.r_->cch_cost_down_[3081][0]);
-  ASSERT_EQ(path_3.costs_[1], w.r_->cch_cost_up_[3081][1]);
+  auto const& sc_1_down = w.r_->cch_sc_down_[83][0];
+  auto const path_1_down = w.r_->unpack_shortcut<false>(sc_1_down);
+  ASSERT_EQ(path_1_down.size(), 1);
+  ASSERT_EQ(path_1_down[0], sc_1_down.exit_node_);
 
-  // test shortcut with two direct shortcuts downward:
-  auto const& sc_4 = w.r_->cch_sc_down_[3082][0];
-  auto const path_4 = w.r_->unpack_shortcut<false>(sc_4);
-  ASSERT_EQ(path_4.path_[0], sc_1.exit_node_);
-  ASSERT_EQ(path_4.path_[1], w.r_->cch_sc_down_[3081][1].exit_node_);
-  ASSERT_EQ(path_4.costs_[0], w.r_->cch_cost_up_[3081][0]);
-  ASSERT_EQ(path_4.costs_[1], w.r_->cch_cost_down_[3081][1]);
+  auto const& sc_3_up = w.r_->cch_sc_up_[134][2];
+  auto const path_3_up = w.r_->unpack_shortcut<true>(sc_3_up);
+  ASSERT_EQ(path_3_up.size(), 2);
+  ASSERT_EQ(path_3_up[0], w.r_->cch_sc_down_[83][0].exit_node_);
+  ASSERT_EQ(path_3_up[1], w.r_->cch_sc_up_[83][1].exit_node_);
+
+  auto const& sc_3_down = w.r_->cch_sc_down_[134][2];
+  auto const path_3_down = w.r_->unpack_shortcut<false>(sc_3_down);
+  ASSERT_EQ(path_3_up.size(), 2);
+  ASSERT_EQ(path_3_down[0], w.r_->cch_sc_down_[83][1].exit_node_);
+  ASSERT_EQ(path_3_down[1], w.r_->cch_sc_up_[83][0].exit_node_);
+
+  auto const& sc_8_up = w.r_->cch_sc_up_[137][2];
+  auto const path_8_up = w.r_->unpack_shortcut<true>(sc_8_up);
+  ASSERT_EQ(path_8_up.size(), 3);
+  ASSERT_EQ(path_8_up[0], w.r_->cch_sc_down_[134][1].exit_node_);
+  ASSERT_EQ(path_8_up[1], w.r_->cch_sc_down_[83][0].exit_node_);
+  ASSERT_EQ(path_8_up[2], w.r_->cch_sc_up_[83][1].exit_node_);
+
+  auto const& sc_8_down = w.r_->cch_sc_down_[137][2];
+  auto const path_8_down = w.r_->unpack_shortcut<false>(sc_8_down);
+  ASSERT_EQ(path_8_down.size(), 3);
+  ASSERT_EQ(path_8_down[0], w.r_->cch_sc_down_[83][1].exit_node_);
+  ASSERT_EQ(path_8_down[1], w.r_->cch_sc_up_[83][0].exit_node_);
+  ASSERT_EQ(path_8_down[2], w.r_->cch_sc_up_[134][1].exit_node_);
+
+  auto const& sc_9_up = w.r_->cch_sc_up_[168][5];
+  auto const path_9_up = w.r_->unpack_shortcut<true>(sc_9_up);
+  ASSERT_EQ(path_9_up.size(), 5);
+  ASSERT_EQ(path_9_up[0], w.r_->cch_sc_down_[83][1].exit_node_);
+  ASSERT_EQ(path_9_up[1], w.r_->cch_sc_up_[83][0].exit_node_);
+  ASSERT_EQ(path_9_up[2], w.r_->cch_sc_up_[134][1].exit_node_);
+  ASSERT_EQ(path_9_up[3], w.r_->cch_sc_down_[133][0].exit_node_);
+  ASSERT_EQ(path_9_up[4], w.r_->cch_sc_up_[133][3].exit_node_);
+
+  auto const& sc_9_down = w.r_->cch_sc_down_[168][5];
+  auto const path_9_down = w.r_->unpack_shortcut<false>(sc_9_down);
+  ASSERT_EQ(path_9_down.size(), 5);
+  ASSERT_EQ(path_9_down[0], w.r_->cch_sc_down_[133][3].exit_node_);
+  ASSERT_EQ(path_9_down[1], w.r_->cch_sc_up_[133][0].exit_node_);
+  ASSERT_EQ(path_9_down[2], w.r_->cch_sc_down_[134][1].exit_node_);
+  ASSERT_EQ(path_9_down[3], w.r_->cch_sc_down_[83][0].exit_node_);
+  ASSERT_EQ(path_9_down[4], w.r_->cch_sc_up_[83][1].exit_node_);
 }
 
 TEST(extract, init_neighborhoods) {

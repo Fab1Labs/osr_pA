@@ -373,6 +373,20 @@ struct ways {
       throw utl::fail("Node {} has not target {}", from, to);
     }
 
+    cost_t get_edge_cost(node_idx_t const& from, 
+                         node_idx_t const& to) const {
+      auto const& from_rank = node_importance_[from];
+      auto const& shortcut = from_rank < node_importance_[to] ? get_packed_shortcut<true>(from, to)
+                                                              : get_packed_shortcut<false>(from, to);
+      utl::verify(cch_true_edge(shortcut), "[EDGE COST] Try to get cost of unreal edge");
+
+      auto const t_idx = get_target_idx(from, to);
+      auto const& cost = from_rank < node_importance_[to] ? cch_cost_up_[from_rank][t_idx] 
+                                                          : cch_cost_down_[from_rank][t_idx];
+      utl::verify(cost != osr::kInfeasible, "[EDGE COST] Try to get unreal cost");
+      return cost;
+    }
+
     bool cch_true_edge(cch::packed_shortcut const& sc) const {
       if (!sc.is_valid()) {
         utl::fail("[CCH EDGE CHECK] Got invalid Shortcut in path. Failed unpacking");
@@ -387,22 +401,17 @@ struct ways {
     }
 
     template<bool IsUp>
-    cch::unpacked_shortcut unpack_shortcut(cch::packed_shortcut const& sc) const {  
+    osr::vec<cch::target_node> unpack_shortcut(cch::packed_shortcut const& sc) const {  
       // checke ob der shortcut eine echte Kante ist:
       if (cch_true_edge(sc)) {
-        auto unpacked_sc = cch::unpacked_shortcut{
-          .path_ = {},
-          .costs_ = {}
-        };
-    
+        osr::vec<cch::target_node> unpacked_sc = {};
         auto const& entry_rank = IsUp ? node_importance_[sc.entry_node_.n_] :
                                         node_importance_[sc.exit_node_.n_];
         auto const& target_idx = IsUp ? get_target_idx(sc.entry_node_.n_, sc.exit_node_.n_) :
                                         get_target_idx(sc.exit_node_.n_, sc.entry_node_.n_);
-        auto const& edge_cost = IsUp ? cch_cost_up_[entry_rank][target_idx] + sc.u_turn_penalty_ :
+        auto const& edge_cost = IsUp ? cch_cost_up_[entry_rank][target_idx] :
                                        cch_cost_down_[entry_rank][target_idx];
-        unpacked_sc.costs_.push_back(edge_cost);
-        unpacked_sc.path_.push_back(sc.exit_node_);
+        unpacked_sc.push_back(sc.exit_node_);
 
         utl::verify(edge_cost != osr::kInfeasible, 
                     "[unpack shortcut] found invalid costs during unpacking");
@@ -419,9 +428,13 @@ struct ways {
       auto unpacked_up_part = this->unpack_shortcut<IsUp>(up_part);
       auto unpacked_down_part = this->unpack_shortcut<!IsUp>(down_part);
 
-      unpacked_down_part.append(unpacked_up_part);
+      if constexpr(IsUp) {
+        unpacked_down_part.insert(unpacked_down_part.end(), unpacked_up_part.begin(), unpacked_up_part.end());
+      } else {
+        unpacked_up_part.insert(unpacked_up_part.end(), unpacked_down_part.begin(), unpacked_down_part.end());
+      }
 
-      return unpacked_down_part;
+      return IsUp ? unpacked_down_part : unpacked_up_part;
     }
 
     static cista::wrapped<routing> read(std::filesystem::path const&);

@@ -230,23 +230,38 @@ path reconstruct_bidir(typename P::parameters const& params,
   auto forward_dist = 0.0;
 
   return path{.cost_ = b.mu_,
-                .dist_ = 0,
-                .elevation_ = elevation_storage::elevation{},
-                .segments_ = forward_segments};
+              .dist_ = 0,
+              .elevation_ = elevation_storage::elevation{},
+              .segments_ = forward_segments};
 
   while (true) {
     auto const& entry = b.cost_f_.at(forward_n.get_key());
-    auto const pred = entry.pred(forward_n);
-    if (pred.has_value()) {
-      auto const expected_cost = static_cast<cost_t>(
-        entry.cost(forward_n) - b.template get_cost<direction::kForward>(*pred));
-      forward_dist +=
-          add_path<P>(params, w, *w.r_, blocked, sharing, elevations, *pred,
-                      forward_n, expected_cost, forward_segments, dir);
+    auto const shortcut_entry_fw = entry.pred(forward_n);
+    if (shortcut_entry_fw.has_value()) {
+      auto const sc_start = std::move(*shortcut_entry_fw);
+      auto const& shortcut = w.r_->get_packed_shortcut<true>(sc_start.n_, forward_n.n_);
+      auto const path = w.r_->unpack_shortcut<true>(shortcut);
+
+      if (path.size() > 1) {
+        for (std::size_t i = (path.size() - 2); i >= 0; --i) {
+          auto pred = typename P::node{path[i].n_, path[i].way_, path[i].dir_};
+          auto step_cost = w.r_->get_edge_cost(pred.n_, forward_n.n_);
+          if (w.r_->node_ways_[pred.n_][pred.way_] == w.r_->node_ways_[forward_n.n_][forward_n.way_] &&
+              pred.dir_ == opposite(forward_n.dir_)) {
+            step_cost += params.uturn_penalty_;
+          }
+          forward_dist += add_path<P>(params, w, *w.r_, blocked, sharing, elevations, pred,
+                                      forward_n, step_cost, forward_segments, dir);
+          forward_n = pred;
+        }
+      }
+      auto step_cost = w.r_->get_edge_cost(sc_start.n_, path[0].n_);
+      forward_dist += add_path<P>(params, w, *w.r_, blocked, sharing, elevations, sc_start,
+                                  forward_n, step_cost, forward_segments, dir);
+      forward_n = sc_start;
     } else {
       break;
     }
-    forward_n = *pred;
   }
 
   auto const& start_node_candidate = 
