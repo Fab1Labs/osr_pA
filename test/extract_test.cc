@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <iostream>
+#include <algorithm>
 
 #include "cista/mmap.h"
 
@@ -89,6 +90,60 @@ TEST(extract, contraction_order) {
   }
   
   ASSERT_TRUE(eq);
+}
+
+TEST(extract, test_packed_and_unpacked_costs) {
+  auto const data_dir = "test/aachen.osm.pbf";
+  auto p = fs::temp_directory_path() / "osr_test";
+  auto ec = std::error_code{};
+  fs::remove_all(p, ec);
+  fs::create_directories(p, ec);
+
+  if (!fs::exists(data_dir)) {
+    GTEST_SKIP() << data_dir << " not found";
+  }
+
+  extract(false, data_dir, p, {});
+  auto w = ways{p, cista::mmap::protection::READ};
+
+  for (auto const [rank, node] : utl::enumerate(w.r_->contraction_order_)) {
+    for (auto const [t_idx, target] : utl::enumerate(w.r_->sc_targets_[rank])) {
+      auto const& shortcut = w.r_->cch_sc_up_[rank][t_idx];
+      auto const& expected_cost = w.r_->cch_cost_up_[rank][t_idx];
+      if (expected_cost == kInfeasible) {
+        continue;
+      }
+
+      auto const path_up = w.r_->unpack_shortcut<direction::kForward, true>(shortcut);
+      auto single_costs = w.r_->get_edge_cost<true>(shortcut.entry_node_.n_, shortcut.entry_node_.way_, 
+                                                shortcut.entry_node_.dir_, path_up[0].n_, cost_t{120U});
+
+      for(std::size_t i = 1; i < path_up.size(); ++i) {
+        single_costs += w.r_->get_edge_cost<true>(path_up[i - 1].n_, path_up[i - 1].way_, path_up[i - 1].dir_, 
+                                                     path_up[i].n_, cost_t{120U});
+      }
+      ASSERT_EQ(single_costs, expected_cost);
+    }
+
+    for (auto const [t_idx, target] : utl::enumerate(w.r_->sc_targets_[rank])) {
+      auto const& shortcut = w.r_->cch_sc_down_[rank][t_idx];
+      auto const& expected_cost = w.r_->cch_cost_down_[rank][t_idx];
+      if (expected_cost == kInfeasible) {
+        continue;
+      }
+      
+      auto path_down = w.r_->unpack_shortcut<direction::kBackward, false>(shortcut);
+      std::reverse(path_down.begin(), path_down.end());
+      auto single_costs = w.r_->get_edge_cost<false>(shortcut.exit_node_.n_, shortcut.exit_node_.way_, 
+                                                shortcut.exit_node_.dir_, path_down[0].n_, cost_t{120U});
+      
+      for(std::size_t i = 1; i < path_down.size(); ++i) {
+        single_costs += w.r_->get_edge_cost<false>(path_down[i - 1].n_, path_down[i - 1].way_, path_down[i - 1].dir_, 
+                                                     path_down[i].n_, cost_t{120U});
+      }
+      ASSERT_EQ(single_costs, expected_cost);
+    }
+  }
 }
 
 TEST(extract, pack_shortcuts) {

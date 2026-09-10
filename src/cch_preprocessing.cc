@@ -270,14 +270,14 @@ void cch::contraction::init_neighborhoods() {
       //auto const& wp = r_->way_properties_[way];
       if (idx > 0){ //&& wp.is_car_accessible()) {
         auto const& pred = r_->way_nodes_[way][idx - 1];
-        if (rank < r_->node_importance_[pred] && accessible_node(pred)) {
+        if (rank < r_->node_importance_[pred]) { //&& accessible_node(pred)) {
           r_->sc_targets_[rank].push_back(pred);
         }
       }
       // add neighbors in backward direction with higher rank
       if (idx < (r_->way_nodes_[way].size() - 1)){ // && wp.is_car_accessible()) {
         auto const& succ = r_->way_nodes_[way][idx + 1];
-        if (rank < r_->node_importance_[succ] && accessible_node(succ)) {
+        if (rank < r_->node_importance_[succ]) { // && accessible_node(succ)) {
           r_->sc_targets_[rank].push_back(succ);
         }
       }
