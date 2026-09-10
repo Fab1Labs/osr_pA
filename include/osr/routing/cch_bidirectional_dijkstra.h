@@ -23,7 +23,7 @@ struct bidir_dijkstra {
   using hash = typename P::hash;
   using cost_map = typename ankerl::unordered_dense::map<key, entry, hash>;
 
-  static constexpr auto const kDebug = true;
+  static constexpr auto const kDebug = false;
 
   struct get_bucket{
     osr::cost_t operator()(label const& l) {return l.cost();}
@@ -102,42 +102,56 @@ struct bidir_dijkstra {
   }
 
   template <osr::direction PathDir>
-  std::tuple<osr::cost_t, node> find_opposite(P::parameters const& params, 
-                                              node const n,
-                                              osr::ways::routing const& r) {
-    auto min_cost = osr::kInfeasible;
-    auto contr_node = P::node::invalid();
+  void find_opposite(P::parameters const& params, 
+                     node const n,
+                     osr::cost_t const curr_cost,
+                     osr::ways::routing const& r) {
     for (auto const [way, idx] : utl::zip(r.node_ways_[n.n_],
                                           r.node_in_way_idx_[n.n_])) {
       auto const way_pos = r.get_way_pos(n.n_, way, idx);
+
+      auto const check_op = [&](node const n, node const contr) {
+        auto contr_cost = get_cost<osr::opposite(PathDir)>(contr);
+        if (contr_cost != osr::kInfeasible && curr_cost != osr::kInfeasible) {
+          auto total_cost = static_cast<std::uint64_t>(curr_cost) + 
+                            static_cast<std::uint64_t>(contr_cost);
+
+          if (n.way_ == contr.way_ && n.dir_ == osr::opposite(contr.dir_)) {
+            total_cost += static_cast<std::uint64_t>(params.uturn_penalty_);
+          }
+
+          if (static_cast<osr::cost_t>(total_cost) < mu_) {
+            if (PathDir == osr::direction::kForward) {
+              meet_point_f_ = n;
+              meet_point_b_ = contr;
+            } else {
+              meet_point_f_ = contr;
+              meet_point_b_ = n;
+            }
+
+            mu_ = static_cast<osr::cost_t>(total_cost);
+            if constexpr (kDebug) {
+              std::cout << "=> MEETING POINT: " << n.n_ << " TOTAL COST: " << mu_ <<"\n";
+            }
+          }
+        }
+        if constexpr (kDebug) {
+          std::cout << " CURR_COST: " << curr_cost <<  " CONTR_COST: " << contr_cost << "\n";
+        }
+
+        return;
+      };
+
       if (check_restrictions<PathDir>(r, n, way_pos)) {
         continue;
       }
-      auto op_node = node{n.n_, way_pos, osr::direction::kForward};
-      auto op_cost = get_cost<osr::opposite(PathDir)>(op_node);
-      if (op_cost != osr::kInfeasible && 
-          way_pos == n.way_ && 
-          n.dir_ == osr::direction::kBackward) {
-        op_cost += params.uturn_penalty_;
-      }
-      if (op_cost < min_cost) {
-        min_cost = op_cost;
-        contr_node = op_node;
-      }
 
-      op_node = node{n.n_, way_pos, osr::direction::kBackward};
-      op_cost = get_cost<osr::opposite(PathDir)>(op_node);
-      if (op_cost != osr::kInfeasible && 
-          way_pos == n.way_ && 
-          n.dir_ == osr::direction::kForward) {
-          op_cost += params.uturn_penalty_;
-      }
-      if (op_cost < min_cost) {
-        min_cost = op_cost;
-        contr_node = op_node;
-      }
+      auto const op_node_fw = node{n.n_, way_pos, osr::direction::kForward};
+      check_op(n, op_node_fw);
+
+      auto const op_node_bw = node{n.n_, way_pos, osr::direction::kBackward};
+      check_op(n, op_node_bw);
     }
-    return std::make_tuple(min_cost, contr_node);
   }
 
   template <osr::direction SearchDir, bool WithBlocked, osr::direction PathDir>
@@ -244,7 +258,7 @@ struct bidir_dijkstra {
           std::cout << "  ";
           neighbor.print(std::cout, w);
           is_fwd ? std::cout << " -> PUSH (fw)" : std::cout << " -> PUSH (bw)";
-            std::cout << " PQ SIZE: " << pq.size() << "\n";
+            std::cout << " PQ SIZE: " << pq.size() << " COST: " << neighbor_cost << "\n";
           }
         } else {
           if constexpr (kDebug) {
@@ -256,44 +270,7 @@ struct bidir_dijkstra {
     }
     
     // check contrary cost and potential meetpoint:
-    auto const [contrary_cost, contrary_node] = find_opposite<PathDir>(params, curr, r);
-    if constexpr (kDebug) {
-      std::cout << " CURR_COST: " << curr_cost <<  " CONTR_COST: " << contrary_cost << "\n";
-    }
-    if ((contrary_cost != osr::kInfeasible) && 
-        (curr_cost != osr::kInfeasible) &&
-        ((static_cast<std::uint64_t>(curr_cost) + contrary_cost) < mu_)) {
-      mu_ = static_cast<std::uint64_t>(curr_cost) + contrary_cost;
-
-      if constexpr (kDebug) { 
-        std::cout << "=> MEETING POINT: " << curr.n_ << " TOTAL COST: " << mu_ <<"\n";
-      }
-      utl::verify(curr.n_ == contrary_node.n_,
-                  "Expected equality of meetpoint nodes for {} and {}",
-                  curr.n_, contrary_node.n_);
-      if (is_fwd) {
-        meet_point_f_ = curr;
-        meet_point_b_ = contrary_node;
-      } else {
-        meet_point_f_ = contrary_node;
-        meet_point_b_ = curr;
-      }
-    }
-
-    // check breaking condition:
-    // if (mu_ != osr::kInfeasible) {
-    //   auto const forward_cost = pq_f_.empty() ? get_cost<osr::direction::kForward>(meet_point_f_)
-    //                                           : pq_f_.buckets_[pq_f_.get_next_bucket()].back().cost();
-    //   auto const backward_cost = pq_b_.empty() ? get_cost<osr::direction::kBackward>(meet_point_b_)
-    //                                            : pq_b_.buckets_[pq_b_.get_next_bucket()].back().cost();
-
-    //   if (static_cast<std::uint64_t>(forward_cost) + backward_cost >= mu_) {
-    //     if constexpr (kDebug) {
-    //       std::cout << "TERMINATED: cost(fn) + cost(bn) >= mu\n";
-    //     }
-    //     return false;
-    //   }
-    // }
+    find_opposite<PathDir>(params, curr, curr_cost, r);
  
     return SearchDir == osr::direction::kForward ? !max_reached_f_ : !max_reached_b_;
   }
@@ -323,7 +300,7 @@ struct bidir_dijkstra {
               params, w, r, max, pq_b_, cost_b_)) {
         break;
       }
-    
+
       if (static_cast<std::uint64_t>(curr_fw_cost_) + curr_bw_cost_ >= mu_) {
         if constexpr (kDebug) {
           std::cout << "TERMINATED: cost(fn) + cost(bn) >= mu\n";

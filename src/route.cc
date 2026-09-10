@@ -229,11 +229,6 @@ path reconstruct_bidir(typename P::parameters const& params,
   auto forward_segments = std::vector<path::segment>{};
   auto forward_dist = 0.0;
 
-  // return path{.cost_ = b.mu_,
-  //             .dist_ = 0,
-  //             .elevation_ = elevation_storage::elevation{},
-  //             .segments_ = forward_segments};
-
   while (true) {
     auto const& entry = b.cost_f_.at(forward_n.get_key());
     auto const shortcut_entry_fw = entry.pred(forward_n);
@@ -352,8 +347,15 @@ path reconstruct_bidir(typename P::parameters const& params,
   for (auto const& segment : forward_segments) {
     path_elevation += segment.elevation_;
   }
+  auto const final_cost_fw = b.template get_cost<direction::kForward>(b.meet_point_f_);
+  auto const final_cost_bw = b.template get_cost<direction::kBackward>(b.meet_point_b_);
+  auto penalty = (b.meet_point_f_.way_ == b.meet_point_b_.way_ && 
+                  b.meet_point_f_.dir_ == opposite(b.meet_point_b_.dir_)) ? params.uturn_penalty_
+                                                                          : cost_t{0U};
 
-  auto p = path{.cost_ = b.mu_,
+  auto const total = static_cast<std::uint64_t>(final_cost_fw) +
+                     static_cast<std::uint64_t>(final_cost_bw) + penalty;
+  auto p = path{.cost_ = static_cast<cost_t>(total),
                 .dist_ = total_dist,
                 .elevation_ = path_elevation,
                 .segments_ = forward_segments};
