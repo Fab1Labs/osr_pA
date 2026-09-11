@@ -65,6 +65,8 @@ struct customization {
         continue;
       }
 
+      // the structure of the for loop is inspired by the 
+      // for_each_adjacent_node function profiles/common.h
       for (auto const [way, idx] : 
            utl::zip(r_->node_ways_[node], r_->node_in_way_idx_[node])) {
         auto const get_edge = [&](osr::direction const dir, std::uint16_t const from,
