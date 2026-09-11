@@ -300,19 +300,36 @@ struct bidir_dijkstra {
       std::cout << "[WARNING] This implementation of CCH Bidir Dijkstra does not support blocked, sharing and elevations\n";
     }
 
+    // always run the side with the cheapest next neighbor if both queues are not empty: 
     while (!pq_f_.empty() || !pq_b_.empty()) {
 
-      if (!pq_f_.empty() &&
-          !run_single<SearchDir, WithBlocked, osr::direction::kForward>(
+      if (!pq_f_.empty() && curr_fw_cost_ <= curr_bw_cost_) {
+        if (!run_single<SearchDir, WithBlocked, osr::direction::kForward>(
               params, w, r, max, pq_f_, cost_f_)) {
-        break;
+          break;
+        }
+      } else if (!pq_b_.empty() && curr_fw_cost_ > curr_bw_cost_) {
+        if (!run_single<SearchDir, WithBlocked, osr::direction::kBackward>(
+              params, w, r, max, pq_b_, cost_b_)) {
+          break;
+        }
+      } else if (pq_f_.empty() && !pq_b_.empty()) {
+        if (!run_single<SearchDir, WithBlocked, osr::direction::kBackward>(
+              params, w, r, max, pq_b_, cost_b_)) {
+          break;
+        }
+      } else if (!pq_f_.empty() && pq_b_.empty()) {
+        if (!run_single<SearchDir, WithBlocked, osr::direction::kForward>(
+              params, w, r, max, pq_f_, cost_f_)) {
+          break;
+        }
       }
 
-      if (!pq_b_.empty() && 
-          !run_single<SearchDir, WithBlocked, osr::direction::kBackward>(
-              params, w, r, max, pq_b_, cost_b_)) {
-        break;
-      }
+      // While reformulating the while loop I run into a dead lock.
+      // Used [AI] here to confirm my assumptions. It recommended to use 
+      // else if statements instead of single if statements. The AI's recommended solution
+      // was logically incorrest but I used the idea of else if statements for my fix
+      // instead of iterative if statements
 
       if (static_cast<std::uint64_t>(curr_fw_cost_) + curr_bw_cost_ >= mu_) {
         if constexpr (kDebug) {
@@ -365,5 +382,3 @@ struct bidir_dijkstra {
   bool max_reached_b_{};
 };
 } // namespace cch
-
-// ./build/osr-backend -d ./test/aachen -s web  

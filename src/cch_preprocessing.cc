@@ -64,6 +64,3 @@ void cch::contraction::contract_nodes() {
     } 
   }
 }
-
-
-// ./build/osr-extract -i ./test/aachen.osm.pbf -o ./test/aachen
