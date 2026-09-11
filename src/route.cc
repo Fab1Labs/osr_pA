@@ -234,7 +234,7 @@ path reconstruct_bidir(typename P::parameters const& params,
     auto const shortcut_entry_fw = entry.pred(forward_n);
     if (shortcut_entry_fw.has_value()) {
       auto const sc_start = std::move(*shortcut_entry_fw);
-      auto const& shortcut = w.r_->get_packed_shortcut<true>(sc_start.n_, forward_n.n_);;
+      auto const& shortcut = w.r_->get_packed_shortcut<true>(sc_start.n_, forward_n.way_, forward_n.dir_, forward_n.n_);
       auto const path = dir == direction::kForward ? w.r_->unpack_shortcut<direction::kForward, true>(shortcut)
                                                    : w.r_->unpack_shortcut<direction::kBackward, true>(shortcut);
       if (path.size() > 1) {
@@ -286,7 +286,7 @@ path reconstruct_bidir(typename P::parameters const& params,
     auto const shortcut_entry_bw = entry.pred(backward_n);
     if (shortcut_entry_bw.has_value()) {
       auto const sc_start = std::move(*shortcut_entry_bw);
-      auto const& shortcut = w.r_->get_packed_shortcut<false>(sc_start.n_, backward_n.n_);
+      auto const& shortcut = w.r_->get_packed_shortcut<false>(sc_start.n_, backward_n.way_, backward_n.dir_, backward_n.n_);
       auto path = dir == direction::kForward ? w.r_->unpack_shortcut<direction::kBackward, false>(shortcut)
                                              : w.r_->unpack_shortcut<direction::kForward, false>(shortcut);
       std::reverse(path.begin(), path.end());

@@ -266,7 +266,7 @@ TEST(dijkstra_astarbidir, karlsruhe_kirchfeld) {
 TEST(dijkstra_astarbidir, aachen) {
   auto const raw_data = "test/aachen.osm.pbf";
   auto const data_dir = "test/aachen";
-  auto const num_samples = 10U;
+  auto const num_samples = 10000U;
   auto const max_cost = 3 * 3600U;
   auto constexpr dir = direction::kForward;
 

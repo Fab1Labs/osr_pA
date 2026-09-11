@@ -190,11 +190,22 @@ struct bidir_dijkstra {
     }
 
     auto const& curr_importance = r.node_importance_[curr.n_];
-    auto const& targets = r.sc_targets_[curr_importance];
-    auto const& sc_costs = is_fwd ? r.cch_cost_up_[curr_importance] 
+    auto targets = r.sc_targets_[curr_importance];
+    osr::vec<osr::node_idx_t> self_targets = {};
+    self_targets.resize(r.cch_cost_self_[curr_importance].size(), curr.n_);
+    auto sc_costs = is_fwd ? r.cch_cost_up_[curr_importance] 
                                   : r.cch_cost_down_[curr_importance];
-    auto const& sc_properties = is_fwd ? r.cch_sc_up_[curr_importance]
+    auto const sc_costs_self = r.cch_cost_self_[curr_importance];
+    auto sc_properties = is_fwd ? r.cch_sc_up_[curr_importance]
                                        : r.cch_sc_down_[curr_importance];
+    auto const sc_properties_self = r.cch_sc_self_[curr_importance];
+
+    sc_costs.insert(sc_costs.end(), sc_costs_self.begin(), sc_costs_self.end());
+    sc_properties.insert(sc_properties.end(), sc_properties_self.begin(), sc_properties_self.end());
+    targets.insert(targets.end(), self_targets.begin(), self_targets.end());
+    utl::verify(sc_costs.size() == sc_properties.size() && sc_costs.size() == targets.size(),
+                "[BIDIR] Unequal size of costs ({}), targets ({}) and shortcuts ({})",
+                sc_costs.size(), targets.size(), sc_properties.size());
 
     // add all shortcuts to the queue:
     for (auto [target, cost, property] : utl::zip(targets, sc_costs, sc_properties)) {
@@ -264,10 +275,10 @@ struct bidir_dijkstra {
             neighbor.print(std::cout, w);
             is_fwd ? std::cout << " -> DOMINATED (fw)\n" : std::cout << " -> DOMINATED (bw)\n";
         }
-
-        // check contrary cost and potential meetpoint:
-        find_opposite<PathDir>(params, neighbor, neighbor_cost, r);
       }
+
+      // check contrary cost and potential meetpoint:
+      find_opposite<PathDir>(params, neighbor, neighbor_cost, r);
     }
     
     return SearchDir == osr::direction::kForward ? !max_reached_f_ : !max_reached_b_;

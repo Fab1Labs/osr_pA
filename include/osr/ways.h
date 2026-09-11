@@ -355,10 +355,23 @@ struct ways {
 
     template<bool IsUp>
     cch::packed_shortcut get_packed_shortcut(node_idx_t const& from,
+                                             way_pos_t const& to_way,
+                                             direction const& to_dir,
                                              node_idx_t const& to) const {
       auto const& from_rank = node_importance_[from];
-      auto const t_idx = get_target_idx(from, to);
-      return IsUp ? cch_sc_up_[from_rank][t_idx] : cch_sc_down_[from_rank][t_idx];
+      if (from != to) {
+        auto const t_idx = get_target_idx(from, to);
+        return IsUp ? cch_sc_up_[from_rank][t_idx] : cch_sc_down_[from_rank][t_idx];
+      } else {
+        for (auto const sc : cch_sc_self_[from_rank]) {
+          auto const& e = IsUp ? sc.exit_node_ : sc.entry_node_; 
+          if (e.n_ == to && e.way_ == to_way && e.dir_ == to_dir) {
+            return sc;
+          }
+        }
+        return cch::packed_shortcut::invalid();
+        throw utl::fail("[GET PACKED SHORTCUT] Got no matching self shorcut");
+      }
     }
 
     std::size_t get_target_idx(node_idx_t const& from,
@@ -383,8 +396,8 @@ struct ways {
       auto const& to_rank = node_importance_[to];
 
       if (from_rank < to_rank) {
-        auto const& shortcut = IsUp ? get_packed_shortcut<true>(from, to)
-                                    : get_packed_shortcut<false>(from, to);
+        auto const& shortcut = IsUp ? get_packed_shortcut<true>(from, from_way, from_dir, to)
+                                    : get_packed_shortcut<false>(from, from_way, from_dir, to);
         utl::verify(cch_true_edge(shortcut), "[EDGE COST 1] Try to get cost of unreal edge");
         auto const t_idx = get_target_idx(from, to);
         auto cost = IsUp ? cch_cost_up_[from_rank][t_idx] : 
@@ -399,8 +412,8 @@ struct ways {
       }
 
       if (to_rank < from_rank) {
-        auto const& shortcut = IsUp ? get_packed_shortcut<false>(to, from)
-                                    : get_packed_shortcut<true>(to, from);
+        auto const& shortcut = IsUp ? get_packed_shortcut<false>(to, from_way, from_dir, from)
+                                    : get_packed_shortcut<true>(to, from_way, from_dir, from);
         utl::verify(cch_true_edge(shortcut), "[EDGE COST 4] Try to get cost of unreal edge");
         auto const t_idx = get_target_idx(to, from);
         auto cost = IsUp ? cch_cost_down_[to_rank][t_idx] 
