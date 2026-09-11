@@ -45,12 +45,14 @@ auto with_profile(search_profile const p, Fn&& fn) {
 
 template <typename Fn>
 auto with_valid_cch_profile(osr::search_profile const p, Fn&& fn) {
+  // make sure the cch search only works with the car profile 
+  // (add supported profiles here after implementation)
   if (p == osr::search_profile::kCar) {
     return fn(osr::car{});
   }
-  if (p == osr::search_profile::kBus) {
-    return fn(osr::bus{});
-  }
+  // if (p == osr::search_profile::kBus) {
+  //   return fn(osr::bus{});
+  // }
 
   throw utl::fail("cch customization is not implemented for profile {}.", to_str(p));
 }

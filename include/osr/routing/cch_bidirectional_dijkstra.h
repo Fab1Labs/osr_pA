@@ -13,6 +13,10 @@
 
 namespace cch {
 
+// the general struct is inspired from the available 
+// dijkstra and a-star implementation in the repository
+// to fit into the general program
+
 template <osr::Profile P, bool EarlyTermination = false>
 struct bidir_dijkstra {
   using profile_t = P;

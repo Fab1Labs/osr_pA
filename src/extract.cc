@@ -711,16 +711,15 @@ void extract(bool const with_platforms,
   contraction.init_neighborhoods();
   contraction.contract_nodes();
 
+  // Prepare the CCH customization for the car profile here (contraction):
   pt->status("CCH Preparation Customization").in_high(w.n_ways()).out_bounds(97, 98);
   auto profile = search_profile::kCar;
   auto params = get_parameters(profile);
   auto customization = cch::customization{w.r_};
-  //customization.calculate_direct_costs(profile, params);
   customization.get_cch_edges(profile, params);
+
+  // customize the shortcuts for the car profile here:
   pt->status("CCH Customization").in_high(w.n_ways()).out_bounds(98, 99);
-  //customization.basic_customization<true, false>(profile, params);
-  //customization.transform_downward_paths();
-  //customization.check_shortcut_correctness(w);
   customization.customize_shortcuts<true, false>(profile, params);
   w.r_->write(out);
 

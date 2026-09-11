@@ -345,14 +345,7 @@ struct ways {
                                  node_turn_bearings_[n][to], to_dir);
     }
 
-    template<bool IsUp>
-    cch::sc_properties get_shortcut(node_idx_t const& from, 
-                                    node_idx_t const& to) const {
-      auto const& from_rank = node_importance_[from];
-      auto const t_idx = get_target_idx(from, to);
-      return IsUp ? sc_up_[from_rank][t_idx] : sc_down_[from_rank][t_idx];
-    }
-
+    // return the shortcut between the virtual node from and the node to
     template<bool IsUp>
     cch::packed_shortcut get_packed_shortcut(node_idx_t const& from,
                                              way_pos_t const& to_way,
@@ -374,6 +367,7 @@ struct ways {
       }
     }
 
+    // return the index of a target (upper neighbor) in from
     std::size_t get_target_idx(node_idx_t const& from,
                                node_idx_t const& to) const {
       auto const& from_rank = node_importance_[from];
@@ -386,6 +380,8 @@ struct ways {
       throw utl::fail("Node {} has not target {}", from, to);
     }
 
+    // after unpacking the shortcut path return the edge cost for 
+    // specific edge in the path. 
     template<bool IsUp>
     cost_t get_edge_cost(node_idx_t const& from, 
                          way_pos_t const& from_way, 
@@ -429,6 +425,7 @@ struct ways {
       throw utl::fail("Tried to get edge cost node to node");
     }
 
+    // check if the shortcut consists of one (true) or multiple edges (false)
     bool cch_true_edge(cch::packed_shortcut const& sc) const {
       if (!sc.is_valid()) {
         utl::fail("[CCH EDGE CHECK] Got invalid Shortcut in path. Failed unpacking");
@@ -442,6 +439,7 @@ struct ways {
       return false;
     }
 
+    // unpack a shortcut recursively here:
     template<direction PathDir, bool IsUp>
     osr::vec<cch::target_node> unpack_shortcut(cch::packed_shortcut const& sc) const {  
       auto const is_fwd = PathDir == direction::kForward;
@@ -513,13 +511,9 @@ struct ways {
     vec_map<node_idx_t, point> node_positions_;
     vec_map<node_idx_t, std::uint32_t> node_importance_;
 
-    vec<vec<cost_t>> sc_costs_up_;
-    vec<vec<cost_t>> sc_costs_down_;
-    vec<vec<cch::sc_properties>> sc_up_;
-    vec<vec<cch::sc_properties>> sc_down_;
+    // CCH Relevant information stored in ways:
     vec<vec<node_idx_t>> sc_targets_;
     vec<node_idx_t> contraction_order_;
-
     vec<vec<cch::packed_shortcut>> cch_sc_up_;
     vec<vec<cch::packed_shortcut>> cch_sc_down_;
     vec<vec<cch::packed_shortcut>> cch_sc_self_;

@@ -99,10 +99,6 @@ using way_pos_t = std::uint8_t;
 
 using cost_t = std::uint32_t;
 
-using neighbor_idx_t = std::uint64_t;
-
-using shortcut_idx_t = std::uint32_t;
-
 constexpr auto const kInfeasible = std::numeric_limits<cost_t>::max();
 
 template <typename T>
