@@ -194,7 +194,24 @@ TEST(extract, pack_shortcuts) {
                   "[SC POINT VERIFY DOWN] Expected entry {} but got {} and exit {} but got {}",
                   w.node_to_osm_[target], w.node_to_osm_[sc_down.entry_node_.n_], w.node_to_osm_[node],
                   w.node_to_osm_[sc_down.exit_node_.n_]);
-    } 
+    }
+
+    for (auto [way_pos, way] : utl::enumerate(w.r_->node_ways_[node])) {
+
+      utl::verify(w.r_->node_ways_[node].size() == w.r_->cch_sc_self_[rank].size() &&
+                  w.r_->node_ways_[node].size() == w.r_->cch_cost_self_[rank].size(),
+                  "[SELF SIZE VERIFY] Expected {} self shortcuts but got {}",
+                  w.r_->node_ways_[node].size(), w.r_->cch_sc_self_[rank].size());
+
+      auto const& self_cost = w.r_->cch_cost_self_[rank][way_pos];
+      auto const& self_sc = w.r_->cch_sc_self_[rank][way_pos];
+      utl::verify((self_sc.entry_node_.n_ == node && self_sc.exit_node_.n_ == node) ||
+                  (self_sc.entry_node_.n_ == osr::node_idx_t::invalid() &&
+                   self_sc.exit_node_.n_ == osr::node_idx_t::invalid()),
+                  "[SELF RANK VERIFY] Expected self node {} but got sc from {} to {}",
+                  w.node_to_osm_[node], w.node_to_osm_[self_sc.entry_node_.n_], 
+                  w.node_to_osm_[self_sc.exit_node_.n_]);
+    }
   }
 }
 

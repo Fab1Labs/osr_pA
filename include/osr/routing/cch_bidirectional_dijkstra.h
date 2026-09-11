@@ -132,11 +132,9 @@ struct bidir_dijkstra {
             mu_ = static_cast<osr::cost_t>(total_cost);
             if constexpr (kDebug) {
               std::cout << "=> MEETING POINT: " << n.n_ << " TOTAL COST: " << mu_ <<"\n";
+              std::cout << " CURR_COST: " << curr_cost <<  " CONTR_COST: " << contr_cost << "\n";
             }
           }
-        }
-        if constexpr (kDebug) {
-          std::cout << " CURR_COST: " << curr_cost <<  " CONTR_COST: " << contr_cost << "\n";
         }
 
         return;
@@ -266,12 +264,12 @@ struct bidir_dijkstra {
             neighbor.print(std::cout, w);
             is_fwd ? std::cout << " -> DOMINATED (fw)\n" : std::cout << " -> DOMINATED (bw)\n";
         }
+
+        // check contrary cost and potential meetpoint:
+        find_opposite<PathDir>(params, neighbor, neighbor_cost, r);
       }
     }
     
-    // check contrary cost and potential meetpoint:
-    find_opposite<PathDir>(params, curr, curr_cost, r);
- 
     return SearchDir == osr::direction::kForward ? !max_reached_f_ : !max_reached_b_;
   }
 

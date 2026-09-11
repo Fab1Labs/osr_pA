@@ -62,14 +62,18 @@ struct customization {
   void get_cch_edges(typename P::parameters const& params) {
     r_->cch_cost_up_.resize(r_->contraction_order_.size());
     r_->cch_cost_down_.resize(r_->contraction_order_.size());
+    r_->cch_cost_self_.resize(r_->contraction_order_.size());
     r_->cch_sc_up_.resize(r_->contraction_order_.size());
     r_->cch_sc_down_.resize(r_->contraction_order_.size());
+    r_->cch_sc_self_.resize(r_->contraction_order_.size());
 
     for (auto const [rank, node] : utl::enumerate(r_->contraction_order_)) {
       r_->cch_cost_up_[rank].resize(r_->sc_targets_[rank].size(), osr::kInfeasible);
       r_->cch_cost_down_[rank].resize(r_->sc_targets_[rank].size(), osr::kInfeasible);
+      r_->cch_cost_self_[rank].resize(r_->node_ways_[node].size(), osr::kInfeasible);
       r_->cch_sc_up_[rank].resize(r_->sc_targets_[rank].size(), packed_shortcut::invalid());
       r_->cch_sc_down_[rank].resize(r_->sc_targets_[rank].size(), packed_shortcut::invalid());
+      r_->cch_sc_self_[rank].resize(r_->node_ways_[node].size(), packed_shortcut::invalid());
 
       auto const node_cost = P::node_cost(params, r_->node_properties_[node]);
       if (node_cost == osr::kInfeasible) {
@@ -159,7 +163,25 @@ struct customization {
         auto const& targets = r_->sc_targets_[n_rank];
         auto const& node_to_entry_cost = r_->cch_cost_up_[rank][n_idx];
         auto const& entry_to_node_cost = r_->cch_cost_down_[rank][n_idx];
-
+        
+        // add phantom shortcut from neighbor to neighbor: (indexed by way idx of node)
+        auto const& to_entry = r_->cch_sc_up_[rank][n_idx];
+        auto const& from_entry = r_->cch_sc_down_[rank][n_idx];
+        auto const& penalty = get_penalty<P, WithRestrictions, IsBus>(params, 
+              node, r_->cch_sc_down_[rank][n_idx], r_->cch_sc_up_[rank][n_idx]);
+        auto const& sc_idx = static_cast<std::size_t>(from_entry.entry_node_.way_);
+        if (to_entry.is_valid() && from_entry.is_valid()) {
+          if (r_->cch_true_edge(to_entry) && r_->cch_true_edge(from_entry) &&
+              combineable(r_->cch_cost_self_[n_rank][sc_idx], node_to_entry_cost,
+                          entry_to_node_cost, penalty)) {
+            r_->cch_cost_self_[n_rank][sc_idx] = node_to_entry_cost + 
+                                                 entry_to_node_cost +
+                                                 penalty;
+            combine_shortcuts(r_->cch_sc_self_[n_rank][sc_idx], rank, n_idx, n_idx, penalty);
+          }
+        }
+       
+        // add regular shortcut (indexed by index of target in sc_targets)
         for (std::size_t t_idx = n_idx + 1; t_idx < neighbors.size(); ++t_idx) {
           auto const& target = neighbors[t_idx];
           utl::verify(r_->node_importance_[target] > r_->node_importance_[entry], 

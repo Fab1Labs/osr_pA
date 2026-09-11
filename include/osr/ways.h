@@ -509,9 +509,10 @@ struct ways {
 
     vec<vec<cch::packed_shortcut>> cch_sc_up_;
     vec<vec<cch::packed_shortcut>> cch_sc_down_;
-    vec<vec<cch::packed_shortcut>> cch_phantom_sc_;
+    vec<vec<cch::packed_shortcut>> cch_sc_self_;
     vec<vec<cost_t>> cch_cost_up_;
     vec<vec<cost_t>> cch_cost_down_;
+    vec<vec<cost_t>> cch_cost_self_;
 
     vec<pair<node_idx_t, level_bits_t>> multi_level_elevators_;
 
