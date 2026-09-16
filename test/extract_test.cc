@@ -130,7 +130,7 @@ TEST(extract, test_packed_and_unpacked_costs) {
 }
 
 TEST(extract, pack_shortcuts) {
-  auto const data_dir = "test/aachen.osm.pbf";
+  auto const data_dir = "test/hamburg.osm.pbf";
   auto p = fs::temp_directory_path() / "osr_test";
   auto ec = std::error_code{};
   fs::remove_all(p, ec);
