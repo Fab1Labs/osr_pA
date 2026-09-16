@@ -383,5 +383,24 @@ TEST(dijkstra_astarbidir, cch_darmstadt_bismarckstr) {
   run<true>(w, l, num_samples, max_cost, dir);
 }
 
+TEST(dijkstra_astarbidir, cch_switzerland_latest) {
+  auto const raw_data = "test/switzerland-latest.osm.pbf";
+  auto const data_dir = "test/switzerland-latest";
+  auto const num_samples = 500U;
+  auto const max_cost = 3 * 3600U;
+  auto constexpr dir = direction::kForward;
+
+  if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
+    GTEST_SKIP() << raw_data << " not found";
+  }
+
+  load(raw_data, data_dir);
+  auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
+  auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
+
+  run<true>(w, l, num_samples, max_cost, dir);
+
+}
+
 
 // ./build/osr-test --gtest_filter=dijkstra_astarbidir.aachen
