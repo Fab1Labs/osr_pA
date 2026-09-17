@@ -1,7 +1,7 @@
 #pragma once
 
-#include "utl/verify.h"
 #include "utl/enumerate.h"
+#include "utl/verify.h"
 
 #include "osr/elevation_storage.h"
 #include "osr/location.h"
@@ -13,7 +13,7 @@
 
 namespace cch {
 
-// the general struct is inspired from the available 
+// the general struct is inspired from the available
 // dijkstra and a-star implementation in the repository
 // to fit into the general program
 
@@ -29,13 +29,13 @@ struct bidir_dijkstra {
 
   static constexpr auto const kDebug = false;
 
-  struct get_bucket{
-    osr::cost_t operator()(label const& l) {return l.cost();}
+  struct get_bucket {
+    osr::cost_t operator()(label const& l) { return l.cost(); }
   };
 
-  void reset(osr::cost_t const max, 
-              osr::location const& start_loc,
-              osr::location const& end_loc) {
+  void reset(osr::cost_t const max,
+             osr::location const& start_loc,
+             osr::location const& end_loc) {
     pq_f_.clear();
     pq_b_.clear();
     pq_f_.n_buckets(max + 1U);
@@ -55,7 +55,7 @@ struct bidir_dijkstra {
 
   void add_start(osr::ways const& w, label const l) {
     if (cost_f_[l.get_node().get_key()].update(l, l.get_node(), l.cost(),
-                                                node::invalid())) {
+                                               node::invalid())) {
       if constexpr (kDebug) {
         std::cout << "START ";
         l.get_node().print(std::cout, w);
@@ -64,14 +64,14 @@ struct bidir_dijkstra {
       }
       utl::verify(l.cost() < pq_f_.n_buckets(),
                   "bidir_dijkstra::add_start: label cost exceed max: {} >= {}",
-                l.cost(), pq_f_.n_buckets());
+                  l.cost(), pq_f_.n_buckets());
       pq_f_.push(l);
     }
   }
 
   void add_end(osr::ways const& w, label const l) {
-    if (cost_b_[l.get_node().get_key()].update(l, l.get_node(), l.cost(), 
-                                                node::invalid())) {
+    if (cost_b_[l.get_node().get_key()].update(l, l.get_node(), l.cost(),
+                                               node::invalid())) {
       if constexpr (kDebug) {
         std::cout << "END ";
         l.get_node().print(std::cout, w);
@@ -80,7 +80,7 @@ struct bidir_dijkstra {
       }
       utl::verify(l.cost() < pq_b_.n_buckets(),
                   "bidir_dijkstra::add_end: label cost exceed max: {} >= {}",
-                l.cost(), pq_b_.n_buckets());
+                  l.cost(), pq_b_.n_buckets());
       pq_b_.push(l);
     }
   }
@@ -98,26 +98,25 @@ struct bidir_dijkstra {
   }
 
   template <osr::direction PathDir>
-  bool check_restrictions(osr::ways::routing const& r, 
-                          node const& curr, 
+  bool check_restrictions(osr::ways::routing const& r,
+                          node const& curr,
                           std::uint16_t const& next_way_pos) {
-    return r.is_restricted<PathDir, false>(
-            curr.n_, curr.way_, next_way_pos);
+    return r.is_restricted<PathDir, false>(curr.n_, curr.way_, next_way_pos);
   }
 
   template <osr::direction PathDir>
-  void find_opposite(P::parameters const& params, 
+  void find_opposite(P::parameters const& params,
                      node const n,
                      osr::cost_t const curr_cost,
                      osr::ways::routing const& r) {
-    for (auto const [way, idx] : utl::zip(r.node_ways_[n.n_],
-                                          r.node_in_way_idx_[n.n_])) {
+    for (auto const [way, idx] :
+         utl::zip(r.node_ways_[n.n_], r.node_in_way_idx_[n.n_])) {
       auto const way_pos = r.get_way_pos(n.n_, way, idx);
 
       auto const check_op = [&](node const n, node const contr) {
         auto contr_cost = get_cost<osr::opposite(PathDir)>(contr);
         if (contr_cost != osr::kInfeasible && curr_cost != osr::kInfeasible) {
-          auto total_cost = static_cast<std::uint64_t>(curr_cost) + 
+          auto total_cost = static_cast<std::uint64_t>(curr_cost) +
                             static_cast<std::uint64_t>(contr_cost);
 
           if (n.way_ == contr.way_ && n.dir_ == osr::opposite(contr.dir_)) {
@@ -135,8 +134,10 @@ struct bidir_dijkstra {
 
             mu_ = static_cast<osr::cost_t>(total_cost);
             if constexpr (kDebug) {
-              std::cout << "=> MEETING POINT: " << n.n_ << " TOTAL COST: " << mu_ <<"\n";
-              std::cout << " CURR_COST: " << curr_cost <<  " CONTR_COST: " << contr_cost << "\n";
+              std::cout << "=> MEETING POINT: " << n.n_
+                        << " TOTAL COST: " << mu_ << "\n";
+              std::cout << " CURR_COST: " << curr_cost
+                        << " CONTR_COST: " << contr_cost << "\n";
             }
           }
         }
@@ -157,12 +158,12 @@ struct bidir_dijkstra {
   }
 
   template <osr::direction SearchDir, bool WithBlocked, osr::direction PathDir>
-  bool run_single(P::parameters const& params, 
-          osr::ways const& w,
-          osr::ways::routing const& r, 
-          osr::cost_t const max,
-          osr::dial<label, get_bucket>& pq,
-          cost_map& costs) {
+  bool run_single(P::parameters const& params,
+                  osr::ways const& w,
+                  osr::ways::routing const& r,
+                  osr::cost_t const max,
+                  osr::dial<label, get_bucket>& pq,
+                  cost_map& costs) {
     auto const is_fwd = PathDir == osr::direction::kForward;
     auto const l = pq.pop();
 
@@ -179,9 +180,11 @@ struct bidir_dijkstra {
       if constexpr (kDebug) {
         is_fwd ? std::cout << "RETURN (fw) " : std::cout << "RETURN (bw) ";
         curr.print(std::cout, w);
-        std::cout << " Expected " << get_cost<PathDir>(l.get_node()) << " but got " << l.cost() << "\n";
+        std::cout << " Expected " << get_cost<PathDir>(l.get_node())
+                  << " but got " << l.cost() << "\n";
       }
-      return PathDir == osr::direction::kForward ? !max_reached_f_ : !max_reached_b_;
+      return PathDir == osr::direction::kForward ? !max_reached_f_
+                                                 : !max_reached_b_;
     }
 
     if constexpr (kDebug) {
@@ -197,31 +200,37 @@ struct bidir_dijkstra {
     auto targets = r.sc_targets_[curr_importance];
     osr::vec<osr::node_idx_t> self_targets = {};
     self_targets.resize(r.cch_cost_self_[curr_importance].size(), curr.n_);
-    auto sc_costs = is_fwd ? r.cch_cost_up_[curr_importance] 
-                                  : r.cch_cost_down_[curr_importance];
+    auto sc_costs = is_fwd ? r.cch_cost_up_[curr_importance]
+                           : r.cch_cost_down_[curr_importance];
     auto const sc_costs_self = r.cch_cost_self_[curr_importance];
     auto sc_properties = is_fwd ? r.cch_sc_up_[curr_importance]
-                                       : r.cch_sc_down_[curr_importance];
+                                : r.cch_sc_down_[curr_importance];
     auto const sc_properties_self = r.cch_sc_self_[curr_importance];
 
     sc_costs.insert(sc_costs.end(), sc_costs_self.begin(), sc_costs_self.end());
-    sc_properties.insert(sc_properties.end(), sc_properties_self.begin(), sc_properties_self.end());
+    sc_properties.insert(sc_properties.end(), sc_properties_self.begin(),
+                         sc_properties_self.end());
     targets.insert(targets.end(), self_targets.begin(), self_targets.end());
-    utl::verify(sc_costs.size() == sc_properties.size() && sc_costs.size() == targets.size(),
-                "[BIDIR] Unequal size of costs ({}), targets ({}) and shortcuts ({})",
-                sc_costs.size(), targets.size(), sc_properties.size());
+    utl::verify(
+        sc_costs.size() == sc_properties.size() &&
+            sc_costs.size() == targets.size(),
+        "[BIDIR] Unequal size of costs ({}), targets ({}) and shortcuts ({})",
+        sc_costs.size(), targets.size(), sc_properties.size());
 
     // add all shortcuts to the queue:
-    for (auto [target, cost, property] : utl::zip(targets, sc_costs, sc_properties)) {
+    for (auto [target, cost, property] :
+         utl::zip(targets, sc_costs, sc_properties)) {
       if (cost == osr::kInfeasible) {
         if constexpr (kDebug) {
-          std::cout << "  REJECTED: " << target <<  " with infeasible cost\n";
+          std::cout << "  REJECTED: " << target << " with infeasible cost\n";
         }
         continue;
       }
 
-      auto const& entry_node = is_fwd ? property.entry_node_ : property.exit_node_;
-      auto const& exit_node = is_fwd ? property.exit_node_ : property.entry_node_;
+      auto const& entry_node =
+          is_fwd ? property.entry_node_ : property.exit_node_;
+      auto const& exit_node =
+          is_fwd ? property.exit_node_ : property.entry_node_;
 
       if (check_restrictions<PathDir>(r, curr, entry_node.way_)) {
         if constexpr (kDebug) {
@@ -230,15 +239,14 @@ struct bidir_dijkstra {
         // add possible u turn here to enter the shortcut correctly
         continue;
       }
-      utl::verify(target == exit_node.n_, 
-                  "Got target: {} but exptected: {}",
+      utl::verify(target == exit_node.n_, "Got target: {} but exptected: {}",
                   exit_node.n_, target);
-      utl::verify(curr.n_ == entry_node.n_,
-                  "Got entry: {} but expected: {}",
+      utl::verify(curr.n_ == entry_node.n_, "Got entry: {} but expected: {}",
                   entry_node.n_, curr.n_);
 
-      auto neighbor_cost = osr::clamp_cost(static_cast<std::uint64_t>(cost) + curr_cost);
-      if (curr.way_ == entry_node.way_ && 
+      auto neighbor_cost =
+          osr::clamp_cost(static_cast<std::uint64_t>(cost) + curr_cost);
+      if (curr.way_ == entry_node.way_ &&
           curr.dir_ == osr::opposite(entry_node.dir_)) {
         neighbor_cost += params.uturn_penalty_;
       }
@@ -253,17 +261,21 @@ struct bidir_dijkstra {
       }
 
       // update new neighbor costs:
-      auto const neighbor = typename P::node{target, exit_node.way_, exit_node.dir_};
-      if (costs[neighbor.get_key()].update(l, neighbor, 
-                static_cast<osr::cost_t>(neighbor_cost), curr)) {
+      auto const neighbor =
+          typename P::node{target, exit_node.way_, exit_node.dir_};
+      if (costs[neighbor.get_key()].update(
+              l, neighbor, static_cast<osr::cost_t>(neighbor_cost), curr)) {
         auto next = label{neighbor, static_cast<osr::cost_t>(neighbor_cost)};
-        next.track(l, r, r.node_ways_[target][exit_node.way_], neighbor.get_node(), false);
+        next.track(l, r, r.node_ways_[target][exit_node.way_],
+                   neighbor.get_node(), false);
 
         auto const hashmap_cost = costs.find(neighbor.get_key());
-        utl::verify(hashmap_cost->second.cost(neighbor) == neighbor_cost, 
-            "Expected costs {} but got {}", neighbor_cost, hashmap_cost->second.cost(neighbor));
+        utl::verify(hashmap_cost->second.cost(neighbor) == neighbor_cost,
+                    "Expected costs {} but got {}", neighbor_cost,
+                    hashmap_cost->second.cost(neighbor));
         utl::verify(get_cost<PathDir>(neighbor) == neighbor_cost,
-            "Expected costs {} but got {}", neighbor_cost, get_cost<PathDir>(neighbor));
+                    "Expected costs {} but got {}", neighbor_cost,
+                    get_cost<PathDir>(neighbor));
 
         pq.push(std::move(next));
 
@@ -271,21 +283,24 @@ struct bidir_dijkstra {
           std::cout << "  ";
           neighbor.print(std::cout, w);
           is_fwd ? std::cout << " -> PUSH (fw)" : std::cout << " -> PUSH (bw)";
-            std::cout << " PQ SIZE: " << pq.size() << " COST: " << neighbor_cost << "\n";
-          }
-        } else {
-          if constexpr (kDebug) {
-            std::cout << "  ";
-            neighbor.print(std::cout, w);
-            is_fwd ? std::cout << " -> DOMINATED (fw)\n" : std::cout << " -> DOMINATED (bw)\n";
+          std::cout << " PQ SIZE: " << pq.size() << " COST: " << neighbor_cost
+                    << "\n";
+        }
+      } else {
+        if constexpr (kDebug) {
+          std::cout << "  ";
+          neighbor.print(std::cout, w);
+          is_fwd ? std::cout << " -> DOMINATED (fw)\n"
+                 : std::cout << " -> DOMINATED (bw)\n";
         }
       }
 
       // check contrary cost and potential meetpoint:
       find_opposite<PathDir>(params, neighbor, neighbor_cost, r);
     }
-    
-    return SearchDir == osr::direction::kForward ? !max_reached_f_ : !max_reached_b_;
+
+    return SearchDir == osr::direction::kForward ? !max_reached_f_
+                                                 : !max_reached_b_;
   }
 
   template <osr::direction SearchDir, bool WithBlocked>
@@ -297,39 +312,41 @@ struct bidir_dijkstra {
            osr::sharing_data const* sharing,
            osr::elevation_storage const* elevations) {
     if (blocked != nullptr || sharing != nullptr || elevations != nullptr) {
-      std::cout << "[WARNING] This implementation of CCH Bidir Dijkstra does not support blocked, sharing and elevations\n";
+      std::cout << "[WARNING] This implementation of CCH Bidir Dijkstra does "
+                   "not support blocked, sharing and elevations\n";
     }
 
-    // always run the side with the cheapest next neighbor if both queues are not empty: 
+    // always run the side with the cheapest next neighbor if both queues are
+    // not empty:
     while (!pq_f_.empty() || !pq_b_.empty()) {
 
       if (!pq_f_.empty() && curr_fw_cost_ <= curr_bw_cost_) {
         if (!run_single<SearchDir, WithBlocked, osr::direction::kForward>(
-              params, w, r, max, pq_f_, cost_f_)) {
+                params, w, r, max, pq_f_, cost_f_)) {
           break;
         }
       } else if (!pq_b_.empty() && curr_fw_cost_ > curr_bw_cost_) {
         if (!run_single<SearchDir, WithBlocked, osr::direction::kBackward>(
-              params, w, r, max, pq_b_, cost_b_)) {
+                params, w, r, max, pq_b_, cost_b_)) {
           break;
         }
       } else if (pq_f_.empty() && !pq_b_.empty()) {
         if (!run_single<SearchDir, WithBlocked, osr::direction::kBackward>(
-              params, w, r, max, pq_b_, cost_b_)) {
+                params, w, r, max, pq_b_, cost_b_)) {
           break;
         }
       } else if (!pq_f_.empty() && pq_b_.empty()) {
         if (!run_single<SearchDir, WithBlocked, osr::direction::kForward>(
-              params, w, r, max, pq_f_, cost_f_)) {
+                params, w, r, max, pq_f_, cost_f_)) {
           break;
         }
       }
 
       // While reformulating the while loop I run into a dead lock.
-      // Used [AI] here to confirm my assumptions. It recommended to use 
-      // else if statements instead of single if statements. The AI's recommended solution
-      // was logically incorrest but I used the idea of else if statements for my fix
-      // instead of iterative if statements
+      // Used [AI] here to confirm my assumptions. It recommended to use
+      // else if statements instead of single if statements. The AI's
+      // recommended solution was logically incorrest but I used the idea of
+      // else if statements for my fix instead of iterative if statements
 
       if (static_cast<std::uint64_t>(curr_fw_cost_) + curr_bw_cost_ >= mu_) {
         if constexpr (kDebug) {
@@ -342,28 +359,31 @@ struct bidir_dijkstra {
       std::cout << "TERMINATED: empty priority queues. ";
       std::cout << "Size Forward Queue: " << pq_f_.size() << " ";
       std::cout << "Size Backward Queue: " << pq_b_.size() << "\n";
-
     }
 
     return !max_reached_f_ || !max_reached_b_;
   }
 
-  bool run(P::parameters const& params, 
+  bool run(P::parameters const& params,
            osr::ways const& w,
-           osr::ways::routing const& r, 
-           osr::cost_t const max, 
+           osr::ways::routing const& r,
+           osr::cost_t const max,
            osr::bitvec<osr::node_idx_t> const* blocked,
-           osr::sharing_data const* sharing, 
-           osr::elevation_storage const* elevations, 
+           osr::sharing_data const* sharing,
+           osr::elevation_storage const* elevations,
            osr::direction const dir) {
     if (blocked == nullptr) {
       return dir == osr::direction::kForward
-                  ? run<osr::direction::kForward, false>(params, w, r, max, blocked, sharing, elevations)
-                  : run<osr::direction::kBackward, false>(params, w, r, max, blocked, sharing, elevations);
+                 ? run<osr::direction::kForward, false>(
+                       params, w, r, max, blocked, sharing, elevations)
+                 : run<osr::direction::kBackward, false>(
+                       params, w, r, max, blocked, sharing, elevations);
     } else {
       return dir == osr::direction::kForward
-                  ? run<osr::direction::kForward, true>(params, w, r, max, blocked, sharing, elevations)
-                  : run<osr::direction::kBackward, true>(params, w, r, max, blocked, sharing, elevations);
+                 ? run<osr::direction::kForward, true>(
+                       params, w, r, max, blocked, sharing, elevations)
+                 : run<osr::direction::kBackward, true>(
+                       params, w, r, max, blocked, sharing, elevations);
     }
   }
 
@@ -381,4 +401,4 @@ struct bidir_dijkstra {
   bool max_reached_f_{};
   bool max_reached_b_{};
 };
-} // namespace cch
+}  // namespace cch

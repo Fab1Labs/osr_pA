@@ -28,16 +28,16 @@
 #include "tiles/osm/hybrid_node_idx.h"
 #include "tiles/osm/tmp_file.h"
 
+#include "osr/cch_customization.h"
+#include "osr/cch_preprocessing.h"
 #include "osr/elevation_storage.h"
 #include "osr/extract/tags.h"
-#include "osr/routing/profiles/car.h"
-#include "osr/routing/parameters.h"
 #include "osr/lookup.h"
 #include "osr/platforms.h"
 #include "osr/preprocessing/elevation/provider.h"
+#include "osr/routing/parameters.h"
+#include "osr/routing/profiles/car.h"
 #include "osr/ways.h"
-#include "osr/cch_preprocessing.h"
-#include "osr/cch_customization.h"
 
 namespace osm = osmium;
 namespace osm_io = osmium::io;
@@ -590,7 +590,8 @@ void extract(bool const with_platforms,
   // return progress of the file reading operation to the user
   auto pt = utl::get_active_progress_tracker_or_activate("osr");
 
-  // create two temporary files to work with and combine the to node_idx hybrid file
+  // create two temporary files to work with and combine the to node_idx hybrid
+  // file
   auto const node_idx_file =
       tiles::tmp_file{(out / "idx.bin").generic_string()};
   auto const node_dat_file =
@@ -598,7 +599,7 @@ void extract(bool const with_platforms,
   auto node_idx =
       tiles::hybrid_node_idx{node_idx_file.fileno(), node_dat_file.fileno()};
 
-  // generiere hier eine art hash map von hash_map<osm_way_idx_t, rel_way>, 
+  // generiere hier eine art hash map von hash_map<osm_way_idx_t, rel_way>,
   // wobei rel_way die way properties und platform enthält
   auto rel_ways = rel_ways_t{};
 
@@ -712,7 +713,9 @@ void extract(bool const with_platforms,
   contraction.contract_nodes();
 
   // Prepare the CCH customization for the car profile here (contraction):
-  pt->status("CCH Preparation Customization").in_high(w.n_ways()).out_bounds(97, 98);
+  pt->status("CCH Preparation Customization")
+      .in_high(w.n_ways())
+      .out_bounds(97, 98);
   auto profile = search_profile::kCar;
   auto params = get_parameters(profile);
   auto customization = cch::customization{w.r_};

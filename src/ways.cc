@@ -397,5 +397,4 @@ void ways::routing::write(std::filesystem::path const& p) const {
   return cista::write(p / "routing.bin", *this);
 }
 
-
 }  // namespace osr

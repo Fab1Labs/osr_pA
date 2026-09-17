@@ -1,19 +1,19 @@
 #include "gtest/gtest.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <iostream>
-#include <algorithm>
 
 #include "cista/mmap.h"
 
+#include "osr/cch_customization.h"
+#include "osr/cch_preprocessing.h"
 #include "osr/extract/extract.h"
-#include "osr/routing/route.h"
 #include "osr/lookup.h"
+#include "osr/routing/route.h"
+#include "osr/shortcut.h"
 #include "osr/types.h"
 #include "osr/ways.h"
-#include "osr/cch_preprocessing.h"
-#include "osr/cch_customization.h"
-#include "osr/shortcut.h"
 
 namespace fs = std::filesystem;
 using namespace osr;
@@ -69,9 +69,10 @@ TEST(extract, contraction_order) {
 
   bool eq = true;
   for (auto const [rank, node] : utl::enumerate(w.r_->contraction_order_)) {
-    eq = eq && (static_cast<std::uint32_t>(rank) == w.r_->node_importance_[node]);
+    eq = eq &&
+         (static_cast<std::uint32_t>(rank) == w.r_->node_importance_[node]);
   }
-  
+
   ASSERT_TRUE(eq);
 }
 
@@ -97,13 +98,16 @@ TEST(extract, test_packed_and_unpacked_costs) {
         continue;
       }
 
-      auto const path_up = w.r_->unpack_shortcut<direction::kForward, true>(shortcut);
-      auto single_costs = w.r_->get_edge_cost<true>(shortcut.entry_node_.n_, shortcut.entry_node_.way_, 
-                                                shortcut.entry_node_.dir_, path_up[0].n_, cost_t{120U});
+      auto const path_up =
+          w.r_->unpack_shortcut<direction::kForward, true>(shortcut);
+      auto single_costs = w.r_->get_edge_cost<true>(
+          shortcut.entry_node_.n_, shortcut.entry_node_.way_,
+          shortcut.entry_node_.dir_, path_up[0].n_, cost_t{120U});
 
-      for(std::size_t i = 1; i < path_up.size(); ++i) {
-        single_costs += w.r_->get_edge_cost<true>(path_up[i - 1].n_, path_up[i - 1].way_, path_up[i - 1].dir_, 
-                                                     path_up[i].n_, cost_t{120U});
+      for (std::size_t i = 1; i < path_up.size(); ++i) {
+        single_costs += w.r_->get_edge_cost<true>(
+            path_up[i - 1].n_, path_up[i - 1].way_, path_up[i - 1].dir_,
+            path_up[i].n_, cost_t{120U});
       }
       ASSERT_EQ(single_costs, expected_cost);
     }
@@ -114,15 +118,18 @@ TEST(extract, test_packed_and_unpacked_costs) {
       if (expected_cost == kInfeasible) {
         continue;
       }
-      
-      auto path_down = w.r_->unpack_shortcut<direction::kBackward, false>(shortcut);
+
+      auto path_down =
+          w.r_->unpack_shortcut<direction::kBackward, false>(shortcut);
       std::reverse(path_down.begin(), path_down.end());
-      auto single_costs = w.r_->get_edge_cost<false>(shortcut.exit_node_.n_, shortcut.exit_node_.way_, 
-                                                shortcut.exit_node_.dir_, path_down[0].n_, cost_t{120U});
-      
-      for(std::size_t i = 1; i < path_down.size(); ++i) {
-        single_costs += w.r_->get_edge_cost<false>(path_down[i - 1].n_, path_down[i - 1].way_, path_down[i - 1].dir_, 
-                                                     path_down[i].n_, cost_t{120U});
+      auto single_costs = w.r_->get_edge_cost<false>(
+          shortcut.exit_node_.n_, shortcut.exit_node_.way_,
+          shortcut.exit_node_.dir_, path_down[0].n_, cost_t{120U});
+
+      for (std::size_t i = 1; i < path_down.size(); ++i) {
+        single_costs += w.r_->get_edge_cost<false>(
+            path_down[i - 1].n_, path_down[i - 1].way_, path_down[i - 1].dir_,
+            path_down[i].n_, cost_t{120U});
       }
       ASSERT_EQ(single_costs, expected_cost);
     }
@@ -150,50 +157,65 @@ TEST(extract, pack_shortcuts) {
       auto const& sc_up = w.r_->cch_sc_up_[rank][t_idx];
       auto const& sc_down = w.r_->cch_sc_down_[rank][t_idx];
 
-      utl::verify(w.r_->node_importance_[target] > rank, 
-                  "[TARGET RANK VERIFY] Found importance {} of {} as target of node {} ({})",
-                  w.r_->node_importance_[target], w.node_to_osm_[target], w.node_to_osm_[node], rank);
-        
+      utl::verify(w.r_->node_importance_[target] > rank,
+                  "[TARGET RANK VERIFY] Found importance {} of {} as target of "
+                  "node {} ({})",
+                  w.r_->node_importance_[target], w.node_to_osm_[target],
+                  w.node_to_osm_[node], rank);
+
       utl::verify((!sc_up.is_valid() && cost_up == osr::kInfeasible) ||
-                  (sc_up.is_valid() && cost_up != osr::kInfeasible),
-                  "[SC COST VERIFY UP] Got cost {} and valid shortcut: {} from {} to {}", 
-                  cost_up, sc_up.is_valid(), w.node_to_osm_[node], w.node_to_osm_[target]);
+                      (sc_up.is_valid() && cost_up != osr::kInfeasible),
+                  "[SC COST VERIFY UP] Got cost {} and valid shortcut: {} from "
+                  "{} to {}",
+                  cost_up, sc_up.is_valid(), w.node_to_osm_[node],
+                  w.node_to_osm_[target]);
 
       utl::verify((!sc_down.is_valid() && cost_down == osr::kInfeasible) ||
-                  (sc_down.is_valid() && cost_down != osr::kInfeasible),
-                  "[SC COST VERIFY DOWN] Got cost {} and valid shortcut: {} from {} to {}",
-                  cost_down, sc_down.is_valid(), w.node_to_osm_[node], w.node_to_osm_[target]);
+                      (sc_down.is_valid() && cost_down != osr::kInfeasible),
+                  "[SC COST VERIFY DOWN] Got cost {} and valid shortcut: {} "
+                  "from {} to {}",
+                  cost_down, sc_down.is_valid(), w.node_to_osm_[node],
+                  w.node_to_osm_[target]);
 
-      utl::verify((sc_up.entry_node_.n_ == node && sc_up.exit_node_.n_ == target) ||
-                  (cost_up == osr::kInfeasible && sc_up.entry_node_.n_ == osr::node_idx_t::invalid() &&
-                   sc_up.exit_node_.n_ == osr::node_idx_t::invalid()), 
-                  "[SC POINT VERIFY UP] Expected entry {} but got {} and exit {} but got {}",
-                  w.node_to_osm_[node], w.node_to_osm_[sc_up.entry_node_.n_], w.node_to_osm_[target],
-                  w.node_to_osm_[sc_up.exit_node_.n_]);
-        
-      utl::verify((sc_down.entry_node_.n_ == target && sc_down.exit_node_.n_ == node) ||
-                  (cost_down == osr::kInfeasible && sc_down.entry_node_.n_ == osr::node_idx_t::invalid() &&
-                   sc_down.exit_node_.n_ == osr::node_idx_t::invalid()),
-                  "[SC POINT VERIFY DOWN] Expected entry {} but got {} and exit {} but got {}",
-                  w.node_to_osm_[target], w.node_to_osm_[sc_down.entry_node_.n_], w.node_to_osm_[node],
-                  w.node_to_osm_[sc_down.exit_node_.n_]);
+      utl::verify(
+          (sc_up.entry_node_.n_ == node && sc_up.exit_node_.n_ == target) ||
+              (cost_up == osr::kInfeasible &&
+               sc_up.entry_node_.n_ == osr::node_idx_t::invalid() &&
+               sc_up.exit_node_.n_ == osr::node_idx_t::invalid()),
+          "[SC POINT VERIFY UP] Expected entry {} but got {} and exit {} but "
+          "got {}",
+          w.node_to_osm_[node], w.node_to_osm_[sc_up.entry_node_.n_],
+          w.node_to_osm_[target], w.node_to_osm_[sc_up.exit_node_.n_]);
+
+      utl::verify(
+          (sc_down.entry_node_.n_ == target && sc_down.exit_node_.n_ == node) ||
+              (cost_down == osr::kInfeasible &&
+               sc_down.entry_node_.n_ == osr::node_idx_t::invalid() &&
+               sc_down.exit_node_.n_ == osr::node_idx_t::invalid()),
+          "[SC POINT VERIFY DOWN] Expected entry {} but got {} and exit {} but "
+          "got {}",
+          w.node_to_osm_[target], w.node_to_osm_[sc_down.entry_node_.n_],
+          w.node_to_osm_[node], w.node_to_osm_[sc_down.exit_node_.n_]);
     }
 
     for (auto [way_pos, way] : utl::enumerate(w.r_->node_ways_[node])) {
 
-      utl::verify(w.r_->node_ways_[node].size() == w.r_->cch_sc_self_[rank].size() &&
-                  w.r_->node_ways_[node].size() == w.r_->cch_cost_self_[rank].size(),
-                  "[SELF SIZE VERIFY] Expected {} self shortcuts but got {}",
-                  w.r_->node_ways_[node].size(), w.r_->cch_sc_self_[rank].size());
+      utl::verify(
+          w.r_->node_ways_[node].size() == w.r_->cch_sc_self_[rank].size() &&
+              w.r_->node_ways_[node].size() ==
+                  w.r_->cch_cost_self_[rank].size(),
+          "[SELF SIZE VERIFY] Expected {} self shortcuts but got {}",
+          w.r_->node_ways_[node].size(), w.r_->cch_sc_self_[rank].size());
 
       auto const& self_cost = w.r_->cch_cost_self_[rank][way_pos];
       auto const& self_sc = w.r_->cch_sc_self_[rank][way_pos];
-      utl::verify((self_sc.entry_node_.n_ == node && self_sc.exit_node_.n_ == node) ||
-                  (self_sc.entry_node_.n_ == osr::node_idx_t::invalid() &&
-                   self_sc.exit_node_.n_ == osr::node_idx_t::invalid()),
-                  "[SELF RANK VERIFY] Expected self node {} but got sc from {} to {}",
-                  w.node_to_osm_[node], w.node_to_osm_[self_sc.entry_node_.n_], 
-                  w.node_to_osm_[self_sc.exit_node_.n_]);
+      utl::verify(
+          (self_sc.entry_node_.n_ == node && self_sc.exit_node_.n_ == node) ||
+              (self_sc.entry_node_.n_ == osr::node_idx_t::invalid() &&
+               self_sc.exit_node_.n_ == osr::node_idx_t::invalid()),
+          "[SELF RANK VERIFY] Expected self node {} but got sc from {} to {}",
+          w.node_to_osm_[node], w.node_to_osm_[self_sc.entry_node_.n_],
+          w.node_to_osm_[self_sc.exit_node_.n_]);
     }
   }
 }
@@ -212,44 +234,51 @@ TEST(extract, unpack_bigger_shortcut_forward) {
   extract(false, data_dir, p, {});
   auto w = ways{p, cista::mmap::protection::READ};
 
-  auto const& sc_1_up = w.r_->cch_sc_up_[83][0]; // 83 -> 134
-  auto const path_1_up = w.r_->unpack_shortcut<direction::kForward, true>(sc_1_up);
+  auto const& sc_1_up = w.r_->cch_sc_up_[83][0];  // 83 -> 134
+  auto const path_1_up =
+      w.r_->unpack_shortcut<direction::kForward, true>(sc_1_up);
   ASSERT_EQ(path_1_up.size(), 1);
   ASSERT_EQ(path_1_up[0], sc_1_up.exit_node_);
 
   auto const& sc_1_down = w.r_->cch_sc_down_[83][0];
-  auto const path_1_down = w.r_->unpack_shortcut<direction::kForward, false>(sc_1_down);
+  auto const path_1_down =
+      w.r_->unpack_shortcut<direction::kForward, false>(sc_1_down);
   ASSERT_EQ(path_1_down.size(), 1);
   ASSERT_EQ(path_1_down[0], sc_1_down.exit_node_);
 
   auto const& sc_3_up = w.r_->cch_sc_up_[134][2];
-  auto const path_3_up = w.r_->unpack_shortcut<direction::kForward, true>(sc_3_up);
+  auto const path_3_up =
+      w.r_->unpack_shortcut<direction::kForward, true>(sc_3_up);
   ASSERT_EQ(path_3_up.size(), 2);
   ASSERT_EQ(path_3_up[0], w.r_->cch_sc_down_[83][0].exit_node_);
   ASSERT_EQ(path_3_up[1], w.r_->cch_sc_up_[83][1].exit_node_);
 
   auto const& sc_3_down = w.r_->cch_sc_down_[134][2];
-  auto const path_3_down = w.r_->unpack_shortcut<direction::kForward, false>(sc_3_down);
+  auto const path_3_down =
+      w.r_->unpack_shortcut<direction::kForward, false>(sc_3_down);
   ASSERT_EQ(path_3_up.size(), 2);
   ASSERT_EQ(path_3_down[0], w.r_->cch_sc_down_[83][1].exit_node_);
   ASSERT_EQ(path_3_down[1], w.r_->cch_sc_up_[83][0].exit_node_);
 
   auto const& sc_8_up = w.r_->cch_sc_up_[137][2];
-  auto const path_8_up = w.r_->unpack_shortcut<direction::kForward, true>(sc_8_up);
+  auto const path_8_up =
+      w.r_->unpack_shortcut<direction::kForward, true>(sc_8_up);
   ASSERT_EQ(path_8_up.size(), 3);
   ASSERT_EQ(path_8_up[0], w.r_->cch_sc_down_[134][1].exit_node_);
   ASSERT_EQ(path_8_up[1], w.r_->cch_sc_down_[83][0].exit_node_);
   ASSERT_EQ(path_8_up[2], w.r_->cch_sc_up_[83][1].exit_node_);
 
   auto const& sc_8_down = w.r_->cch_sc_down_[137][2];
-  auto const path_8_down = w.r_->unpack_shortcut<direction::kForward, false>(sc_8_down);
+  auto const path_8_down =
+      w.r_->unpack_shortcut<direction::kForward, false>(sc_8_down);
   ASSERT_EQ(path_8_down.size(), 3);
   ASSERT_EQ(path_8_down[0], w.r_->cch_sc_down_[83][1].exit_node_);
   ASSERT_EQ(path_8_down[1], w.r_->cch_sc_up_[83][0].exit_node_);
   ASSERT_EQ(path_8_down[2], w.r_->cch_sc_up_[134][1].exit_node_);
 
   auto const& sc_9_up = w.r_->cch_sc_up_[168][5];
-  auto const path_9_up = w.r_->unpack_shortcut<direction::kForward, true>(sc_9_up);
+  auto const path_9_up =
+      w.r_->unpack_shortcut<direction::kForward, true>(sc_9_up);
   ASSERT_EQ(path_9_up.size(), 5);
   ASSERT_EQ(path_9_up[0], w.r_->cch_sc_down_[83][1].exit_node_);
   ASSERT_EQ(path_9_up[1], w.r_->cch_sc_up_[83][0].exit_node_);
@@ -258,7 +287,8 @@ TEST(extract, unpack_bigger_shortcut_forward) {
   ASSERT_EQ(path_9_up[4], w.r_->cch_sc_up_[133][3].exit_node_);
 
   auto const& sc_9_down = w.r_->cch_sc_down_[168][5];
-  auto const path_9_down = w.r_->unpack_shortcut<direction::kForward, false>(sc_9_down);
+  auto const path_9_down =
+      w.r_->unpack_shortcut<direction::kForward, false>(sc_9_down);
   ASSERT_EQ(path_9_down.size(), 5);
   ASSERT_EQ(path_9_down[0], w.r_->cch_sc_down_[133][3].exit_node_);
   ASSERT_EQ(path_9_down[1], w.r_->cch_sc_up_[133][0].exit_node_);
@@ -282,23 +312,27 @@ TEST(extract, unpack_bigger_shortcut_backward) {
   auto w = ways{p, cista::mmap::protection::READ};
 
   auto const& sc_1_up = w.r_->cch_sc_up_[83][0];
-  auto const path_1_up = w.r_->unpack_shortcut<direction::kBackward, true>(sc_1_up);
+  auto const path_1_up =
+      w.r_->unpack_shortcut<direction::kBackward, true>(sc_1_up);
   ASSERT_EQ(path_1_up.size(), 1);
   ASSERT_EQ(path_1_up[0], w.r_->cch_sc_up_[83][0].entry_node_);
 
   auto const& sc_1_down = w.r_->cch_sc_down_[83][0];
-  auto const path_1_down = w.r_->unpack_shortcut<direction::kBackward, false>(sc_1_down);
+  auto const path_1_down =
+      w.r_->unpack_shortcut<direction::kBackward, false>(sc_1_down);
   ASSERT_EQ(path_1_down.size(), 1);
   ASSERT_EQ(path_1_down[0], sc_1_down.entry_node_);
 
   auto const& sc_3_up = w.r_->cch_sc_up_[134][2];
-  auto const path_3_up = w.r_->unpack_shortcut<direction::kBackward, true>(sc_3_up);
+  auto const path_3_up =
+      w.r_->unpack_shortcut<direction::kBackward, true>(sc_3_up);
   ASSERT_EQ(path_3_up.size(), 2);
   ASSERT_EQ(path_3_up[0], w.r_->cch_sc_down_[83][0].entry_node_);
   ASSERT_EQ(path_3_up[1], w.r_->cch_sc_up_[83][1].entry_node_);
 
   auto const& sc_3_down = w.r_->cch_sc_down_[134][2];
-  auto const path_3_down = w.r_->unpack_shortcut<direction::kBackward, false>(sc_3_down);
+  auto const path_3_down =
+      w.r_->unpack_shortcut<direction::kBackward, false>(sc_3_down);
   ASSERT_EQ(path_3_down.size(), 2);
   ASSERT_EQ(path_3_down[0], w.r_->cch_sc_down_[83][1].entry_node_);
   ASSERT_EQ(path_3_down[1], w.r_->cch_sc_up_[83][0].entry_node_);

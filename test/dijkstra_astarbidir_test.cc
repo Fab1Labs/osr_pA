@@ -5,8 +5,8 @@
 #include "gtest/gtest.h"
 
 #include <filesystem>
-#include <random>
 #include <iostream>
+#include <random>
 
 #include "cista/mmap.h"
 
@@ -18,10 +18,9 @@
 #include "osr/geojson.h"
 #include "osr/location.h"
 #include "osr/lookup.h"
-#include "osr/routing/cch_bidirectional_dijkstra.h"
 #include "osr/routing/bidirectional.h"
-#include "osr/routing/dijkstra.h"
 #include "osr/routing/cch_bidirectional_dijkstra.h"
+#include "osr/routing/dijkstra.h"
 #include "osr/routing/profile.h"
 #include "osr/routing/profiles/car.h"
 #include "osr/routing/route.h"
@@ -47,7 +46,7 @@ void load(std::string_view raw_data, std::string_view data_dir) {
   }
 }
 
-template<bool WithCCH>
+template <bool WithCCH>
 void run(ways const& w,
          lookup const& l,
          unsigned const n_samples,
@@ -119,16 +118,19 @@ void run(ways const& w,
       try {
         if (WithCCH) {
           return route(car::parameters{}, w, l, search_profile::kCar, from_loc,
-                      to_loc, from_matches_span, to_matches_span, max_cost, dir,
-                      nullptr, nullptr, nullptr, routing_algorithm::kBidirDijkstra);
+                       to_loc, from_matches_span, to_matches_span, max_cost,
+                       dir, nullptr, nullptr, nullptr,
+                       routing_algorithm::kBidirDijkstra);
         } else {
           return route(car::parameters{}, w, l, search_profile::kCar, from_loc,
-                      to_loc, from_matches_span, to_matches_span, max_cost, dir,
-                      nullptr, nullptr, nullptr, routing_algorithm::kAStarBi);
+                       to_loc, from_matches_span, to_matches_span, max_cost,
+                       dir, nullptr, nullptr, nullptr,
+                       routing_algorithm::kAStarBi);
         }
       } catch (std::exception const& ex) {
         if (WithCCH) {
-          fmt::println("cch bidir exception: {}, on route {} -> {}", ex.what(), w.node_to_osm_[from_node], w.node_to_osm_[to_node]);
+          fmt::println("cch bidir exception: {}, on route {} -> {}", ex.what(),
+                       w.node_to_osm_[from_node], w.node_to_osm_[to_node]);
           throw ex;
         } else {
           fmt::println("A* bidir exception: {}", ex.what());
@@ -399,8 +401,6 @@ TEST(dijkstra_astarbidir, cch_switzerland_latest) {
   auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
 
   run<true>(w, l, num_samples, max_cost, dir);
-
 }
-
 
 // ./build/osr-test --gtest_filter=dijkstra_astarbidir.aachen
