@@ -105,8 +105,8 @@ path reconstruct_bidir(typename P::parameters const& params,
               ? w.r_->unpack_shortcut<direction::kForward, true>(shortcut)
               : w.r_->unpack_shortcut<direction::kBackward, true>(shortcut);
       if (path.size() > 1) {
-        for (std::size_t i = (path.size() - 2); i >= 0; --i) {
-          auto pred = typename P::node{path[i].n_, path[i].way_, path[i].dir_};
+        for (std::size_t i = (path.size() - 1); i > 0; --i) {
+          auto pred = typename P::node{path[i - 1].n_, path[i - 1].way_, path[i - 1].dir_};
           auto step_cost =
               w.r_->get_edge_cost<true>(pred.n_, pred.way_, pred.dir_,
                                         forward_n.n_, params.uturn_penalty_);
@@ -114,9 +114,6 @@ path reconstruct_bidir(typename P::parameters const& params,
               add_path<P>(params, w, *w.r_, blocked, sharing, elevations, pred,
                           forward_n, step_cost, forward_segments, dir);
           forward_n = pred;
-          if (i == 0) {
-            break;
-          }
         }
       }
 
@@ -169,8 +166,8 @@ path reconstruct_bidir(typename P::parameters const& params,
               : w.r_->unpack_shortcut<direction::kForward, false>(shortcut);
       std::reverse(path.begin(), path.end());
       if (path.size() > 1) {
-        for (std::size_t i = (path.size() - 2); i >= 0; --i) {
-          auto pred = typename P::node{path[i].n_, path[i].way_, path[i].dir_};
+        for (std::size_t i = (path.size() - 1); i > 0; --i) {
+          auto pred = typename P::node{path[i - 1].n_, path[i - 1].way_, path[i - 1].dir_};
           auto step_cost =
               w.r_->get_edge_cost<false>(pred.n_, pred.way_, pred.dir_,
                                          backward_n.n_, params.uturn_penalty_);
@@ -178,9 +175,6 @@ path reconstruct_bidir(typename P::parameters const& params,
                                        elevations, pred, backward_n, step_cost,
                                        backward_segments, opposite(dir));
           backward_n = pred;
-          if (i == 0) {
-            break;
-          }
         }
       }
 

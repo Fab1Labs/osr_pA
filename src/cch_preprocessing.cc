@@ -29,14 +29,14 @@ void cch::contraction::init_neighborhoods() {
     for (auto const [idx, way] : utl::zip(idx_in_ways, in_ways)) {
       // add neighbors in forward direction with higher rank
       if (idx > 0) {
-        auto const& pred = r_->way_nodes_[way][idx - 1];
+        auto const pred = r_->way_nodes_[way][idx - 1];
         if (rank < r_->node_importance_[pred]) {
           r_->sc_targets_[rank].push_back(pred);
         }
       }
       // add neighbors in backward direction with higher rank
       if (idx < (r_->way_nodes_[way].size() - 1)) {
-        auto const& succ = r_->way_nodes_[way][idx + 1];
+        auto const succ = r_->way_nodes_[way][idx + 1];
         if (rank < r_->node_importance_[succ]) {
           r_->sc_targets_[rank].push_back(succ);
         }
