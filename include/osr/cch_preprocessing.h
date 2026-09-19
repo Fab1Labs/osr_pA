@@ -47,7 +47,7 @@ struct contraction {
         std::unique(r_->sc_targets_[rank].begin(), r_->sc_targets_[rank].end());
     r_->sc_targets_[rank].erase(last_s, r_->sc_targets_[rank].end());
 
-    for (std::size_t i = 0; i < (r_->sc_targets_[rank].size() - 1); ++i) {
+    for (std::uint32_t i = 0; i < (r_->sc_targets_[rank].size() - 1); ++i) {
       utl::verify(r_->node_importance_[r_->sc_targets_[rank][i]] <
                       r_->node_importance_[r_->sc_targets_[rank][i + 1]],
                   "Neighbors are sorted incorrectly");

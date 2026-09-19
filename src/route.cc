@@ -106,7 +106,8 @@ path reconstruct_bidir(typename P::parameters const& params,
               : w.r_->unpack_shortcut<direction::kBackward, true>(shortcut);
       if (path.size() > 1) {
         for (std::size_t i = (path.size() - 1); i > 0; --i) {
-          auto pred = typename P::node{path[i - 1].n_, path[i - 1].way_, path[i - 1].dir_};
+          auto pred = typename P::node{path[i - 1].n_, path[i - 1].way_,
+                                       path[i - 1].dir_};
           auto step_cost =
               w.r_->get_edge_cost<true>(pred.n_, pred.way_, pred.dir_,
                                         forward_n.n_, params.uturn_penalty_);
@@ -167,7 +168,8 @@ path reconstruct_bidir(typename P::parameters const& params,
       std::reverse(path.begin(), path.end());
       if (path.size() > 1) {
         for (std::size_t i = (path.size() - 1); i > 0; --i) {
-          auto pred = typename P::node{path[i - 1].n_, path[i - 1].way_, path[i - 1].dir_};
+          auto pred = typename P::node{path[i - 1].n_, path[i - 1].way_,
+                                       path[i - 1].dir_};
           auto step_cost =
               w.r_->get_edge_cost<false>(pred.n_, pred.way_, pred.dir_,
                                          backward_n.n_, params.uturn_penalty_);
