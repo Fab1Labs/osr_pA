@@ -52,9 +52,9 @@ struct packed_shortcut {
   // Then I used indices instead.
   target_node entry_node_;
   target_node exit_node_;
-  std::size_t down_;
-  std::size_t up_;
-  std::size_t via_rank_;
+  std::uint32_t down_;
+  std::uint32_t up_;
+  std::uint32_t via_rank_;
   osr::cost_t u_turn_penalty_;
 };
 

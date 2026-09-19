@@ -171,7 +171,7 @@ struct customization {
             params, node, r_->cch_sc_down_[rank][n_idx],
             r_->cch_sc_up_[rank][n_idx]);
         auto const& sc_idx =
-            static_cast<std::size_t>(from_entry.entry_node_.way_);
+            static_cast<std::uint32_t>(from_entry.entry_node_.way_);
         if (to_entry.is_valid() && from_entry.is_valid()) {
           if (r_->cch_true_edge(to_entry) && r_->cch_true_edge(from_entry) &&
               combineable(r_->cch_cost_self_[n_rank][sc_idx],

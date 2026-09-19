@@ -369,12 +369,12 @@ struct ways {
     }
 
     // return the index of a target (upper neighbor) in from
-    std::size_t get_target_idx(node_idx_t const& from,
+    std::uint32_t get_target_idx(node_idx_t const& from,
                                node_idx_t const& to) const {
       auto const& from_rank = node_importance_[from];
       for (auto const [idx, target] : utl::enumerate(sc_targets_[from_rank])) {
         if (to == target) {
-          return idx;
+          return static_cast<std::uint32_t>(idx);
         }
       }
       throw utl::fail("Node {} has not target {}", from, to);
