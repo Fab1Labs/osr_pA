@@ -100,7 +100,7 @@ struct bidir_dijkstra {
   template <osr::direction PathDir>
   bool check_restrictions(osr::ways::routing const& r,
                           node const& curr,
-                          std::uint16_t const& next_way_pos) {
+                          osr::way_pos_t const& next_way_pos) {
     return r.is_restricted<PathDir, false>(curr.n_, curr.way_, next_way_pos);
   }
 

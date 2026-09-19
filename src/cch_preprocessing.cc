@@ -15,7 +15,8 @@ void cch::contraction::init_neighborhoods() {
     return;
   }
   r_->sc_targets_.resize(r_->contraction_order_.size());
-  for (auto const [rank, node] : utl::enumerate(r_->contraction_order_)) {
+  for (std::uint32_t rank = 0; rank < r_->contraction_order_.size(); ++rank) {
+    auto const node = r_->contraction_order_[rank];
     utl::verify(rank == r_->node_importance_[node],
                 "Expected Node {} with rank {} but node came at rank {}", node,
                 r_->node_importance_[node], rank);
