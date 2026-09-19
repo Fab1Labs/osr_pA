@@ -113,23 +113,24 @@ struct bidir_dijkstra {
          utl::zip(r.node_ways_[n.n_], r.node_in_way_idx_[n.n_])) {
       auto const way_pos = r.get_way_pos(n.n_, way, idx);
 
-      auto const check_op = [&](node const n, node const contr) {
+      auto const check_op = [&](node const curr, node const contr) {
         auto contr_cost = get_cost<osr::opposite(PathDir)>(contr);
         if (contr_cost != osr::kInfeasible && curr_cost != osr::kInfeasible) {
           auto total_cost = static_cast<std::uint64_t>(curr_cost) +
                             static_cast<std::uint64_t>(contr_cost);
 
-          if (n.way_ == contr.way_ && n.dir_ == osr::opposite(contr.dir_)) {
+          if (curr.way_ == contr.way_ &&
+              curr.dir_ == osr::opposite(contr.dir_)) {
             total_cost += static_cast<std::uint64_t>(params.uturn_penalty_);
           }
 
           if (static_cast<osr::cost_t>(total_cost) < mu_) {
             if (PathDir == osr::direction::kForward) {
-              meet_point_f_ = n;
+              meet_point_f_ = curr;
               meet_point_b_ = contr;
             } else {
               meet_point_f_ = contr;
-              meet_point_b_ = n;
+              meet_point_b_ = curr;
             }
 
             mu_ = static_cast<osr::cost_t>(total_cost);
