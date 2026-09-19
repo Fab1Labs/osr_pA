@@ -51,19 +51,18 @@ struct customization {
     r_->cch_sc_down_.resize(r_->contraction_order_.size());
     r_->cch_sc_self_.resize(r_->contraction_order_.size());
 
-    for (auto const [rank, node] : utl::enumerate(r_->contraction_order_)) {
-      r_->cch_cost_up_[rank].resize(r_->sc_targets_[rank].size(),
-                                    osr::kInfeasible);
-      r_->cch_cost_down_[rank].resize(r_->sc_targets_[rank].size(),
-                                      osr::kInfeasible);
-      r_->cch_cost_self_[rank].resize(r_->node_ways_[node].size(),
-                                      osr::kInfeasible);
-      r_->cch_sc_up_[rank].resize(r_->sc_targets_[rank].size(),
-                                  packed_shortcut::invalid());
-      r_->cch_sc_down_[rank].resize(r_->sc_targets_[rank].size(),
-                                    packed_shortcut::invalid());
-      r_->cch_sc_self_[rank].resize(r_->node_ways_[node].size(),
-                                    packed_shortcut::invalid());
+    for (auto const [rank64, node] : utl::enumerate(r_->contraction_order_)) {
+      auto const rank = static_cast<std::uint32_t>(rank64);
+      auto const target_size =
+          static_cast<std::uint32_t>(r_->sc_targets_[rank].size());
+      auto const self_size =
+          static_cast<std::uint32_t>(r_->node_ways_[node].size());
+      r_->cch_cost_up_[rank].resize(target_size, osr::kInfeasible);
+      r_->cch_cost_down_[rank].resize(target_size, osr::kInfeasible);
+      r_->cch_cost_self_[rank].resize(self_size, osr::kInfeasible);
+      r_->cch_sc_up_[rank].resize(target_size, packed_shortcut::invalid());
+      r_->cch_sc_down_[rank].resize(target_size, packed_shortcut::invalid());
+      r_->cch_sc_self_[rank].resize(self_size, packed_shortcut::invalid());
 
       auto const node_cost = P::node_cost(params, r_->node_properties_[node]);
       if (node_cost == osr::kInfeasible) {
