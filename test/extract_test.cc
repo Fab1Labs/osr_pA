@@ -56,12 +56,17 @@ TEST(extract, bus_only_on_highway) {
 }
 
 TEST(extract, contraction_order) {
+  auto const data_dir = "test/hamburg.osm.pbf";
   auto p = fs::temp_directory_path() / "osr_test";
   auto ec = std::error_code{};
   fs::remove_all(p, ec);
   fs::create_directories(p, ec);
 
-  extract(false, "test/aachen.osm.pbf", p, {});
+  if (!fs::exists(data_dir)) {
+    GTEST_SKIP() << data_dir << " not found";
+  }
+
+  extract(false, data_dir, p, {});
 
   auto w = ways{p, cista::mmap::protection::READ};
   auto mip = cch::contraction{w.r_};

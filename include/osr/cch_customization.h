@@ -144,7 +144,8 @@ struct customization {
   // down to the current node and back to the neighbor
   template <osr::Profile P, bool WithRestrictions, bool IsBus>
   void customize_shortcuts(typename P::parameters const& params) {
-    for (auto const [rank, node] : utl::enumerate(r_->contraction_order_)) {
+    for (auto const [rank64, node] : utl::enumerate(r_->contraction_order_)) {
+      auto const rank = static_cast<std::uint32_t>(rank64);
       auto const& neighbors = r_->sc_targets_[rank];
       utl::verify(neighbors.size() == r_->cch_sc_up_[rank].size() &&
                       neighbors.size() == r_->cch_sc_down_[rank].size() &&
@@ -155,7 +156,8 @@ struct customization {
         continue;
       }
       // shortcut goes entry -> node -> target
-      for (auto const [n_idx, entry] : utl::enumerate(neighbors)) {
+      for (auto const [n_idx64, entry] : utl::enumerate(neighbors)) {
+        auto const n_idx = static_cast<std::uint32_t>(n_idx64);
         auto const& n_rank = r_->node_importance_[entry];
         auto const& targets = r_->sc_targets_[n_rank];
         auto const& node_to_entry_cost = r_->cch_cost_up_[rank][n_idx];
@@ -182,7 +184,8 @@ struct customization {
         }
 
         // add regular shortcut (indexed by index of target in sc_targets)
-        for (std::size_t t_idx = n_idx + 1; t_idx < neighbors.size(); ++t_idx) {
+        for (std::uint32_t t_idx = n_idx + 1; t_idx < neighbors.size();
+             ++t_idx) {
           auto const& target = neighbors[t_idx];
           utl::verify(
               r_->node_importance_[target] > r_->node_importance_[entry],
@@ -313,11 +316,11 @@ struct customization {
 
   // find the index of the target for a shortcut in the list of upper neighbors
   // (sc_targets in the routing struct)
-  std::size_t find_target(osr::vec<osr::node_idx_t> const& targets,
-                          osr::node_idx_t const& t) {
+  std::uint32_t find_target(osr::vec<osr::node_idx_t> const& targets,
+                            osr::node_idx_t const& t) {
     for (auto const [i, n] : utl::enumerate(targets)) {
       if (n == t) {
-        return i;
+        return static_cast<std::uint32_t>(i);
       }
     }
     return targets.size();
