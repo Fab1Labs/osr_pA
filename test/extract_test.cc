@@ -95,8 +95,11 @@ TEST(extract, test_packed_and_unpacked_costs) {
   extract(false, data_dir, p, {});
   auto w = ways{p, cista::mmap::protection::READ};
 
-  for (auto const [rank, node] : utl::enumerate(w.r_->contraction_order_)) {
-    for (auto const [t_idx, target] : utl::enumerate(w.r_->sc_targets_[rank])) {
+  for (auto const [rank64, node] : utl::enumerate(w.r_->contraction_order_)) {
+    auto const rank = static_cast<std::uint32_t>(rank64);
+    for (auto const [t_idx64, target] :
+         utl::enumerate(w.r_->sc_targets_[rank])) {
+      auto const t_idx = static_cast<std::uint32_t>(t_idx64);
       auto const& shortcut = w.r_->cch_sc_up_[rank][t_idx];
       auto const& expected_cost = w.r_->cch_cost_up_[rank][t_idx];
       if (expected_cost == kInfeasible) {
@@ -109,7 +112,7 @@ TEST(extract, test_packed_and_unpacked_costs) {
           shortcut.entry_node_.n_, shortcut.entry_node_.way_,
           shortcut.entry_node_.dir_, path_up[0].n_, cost_t{120U});
 
-      for (std::size_t i = 1; i < path_up.size(); ++i) {
+      for (std::uint32_t i = 1; i < path_up.size(); ++i) {
         single_costs += w.r_->get_edge_cost<true>(
             path_up[i - 1].n_, path_up[i - 1].way_, path_up[i - 1].dir_,
             path_up[i].n_, cost_t{120U});
@@ -117,7 +120,9 @@ TEST(extract, test_packed_and_unpacked_costs) {
       ASSERT_EQ(single_costs, expected_cost);
     }
 
-    for (auto const [t_idx, target] : utl::enumerate(w.r_->sc_targets_[rank])) {
+    for (auto const [t_idx64, target] :
+         utl::enumerate(w.r_->sc_targets_[rank])) {
+      auto const t_idx = static_cast<std::uint32_t>(t_idx64);
       auto const& shortcut = w.r_->cch_sc_down_[rank][t_idx];
       auto const& expected_cost = w.r_->cch_cost_down_[rank][t_idx];
       if (expected_cost == kInfeasible) {
@@ -131,7 +136,7 @@ TEST(extract, test_packed_and_unpacked_costs) {
           shortcut.exit_node_.n_, shortcut.exit_node_.way_,
           shortcut.exit_node_.dir_, path_down[0].n_, cost_t{120U});
 
-      for (std::size_t i = 1; i < path_down.size(); ++i) {
+      for (std::uint32_t i = 1; i < path_down.size(); ++i) {
         single_costs += w.r_->get_edge_cost<false>(
             path_down[i - 1].n_, path_down[i - 1].way_, path_down[i - 1].dir_,
             path_down[i].n_, cost_t{120U});
@@ -154,9 +159,10 @@ TEST(extract, pack_shortcuts) {
 
   extract(false, data_dir, p, {});
   auto w = ways{p, cista::mmap::protection::READ};
-  for (auto const [rank, node] : utl::enumerate(w.r_->contraction_order_)) {
-    for (auto [t_idx, target] : utl::enumerate(w.r_->sc_targets_[rank])) {
-
+  for (auto const [rank64, node] : utl::enumerate(w.r_->contraction_order_)) {
+    auto const rank = static_cast<std::uint32_t>(rank64);
+    for (auto [t_idx64, target] : utl::enumerate(w.r_->sc_targets_[rank])) {
+      auto const t_idx = static_cast<std::uint32_t>(t_idx64);
       auto const& cost_up = w.r_->cch_cost_up_[rank][t_idx];
       auto const& cost_down = w.r_->cch_cost_down_[rank][t_idx];
       auto const& sc_up = w.r_->cch_sc_up_[rank][t_idx];
@@ -203,8 +209,8 @@ TEST(extract, pack_shortcuts) {
           w.node_to_osm_[node], w.node_to_osm_[sc_down.exit_node_.n_]);
     }
 
-    for (auto [way_pos, way] : utl::enumerate(w.r_->node_ways_[node])) {
-
+    for (auto [way_pos64, way] : utl::enumerate(w.r_->node_ways_[node])) {
+      auto const way_pos = static_cast<std::uint32_t>(way_pos64);
       utl::verify(
           w.r_->node_ways_[node].size() == w.r_->cch_sc_self_[rank].size() &&
               w.r_->node_ways_[node].size() ==
