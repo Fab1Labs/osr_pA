@@ -296,9 +296,9 @@ struct customization {
   }
 
   void combine_shortcuts(packed_shortcut& new_shortcut,
-                         std::size_t const via_rank,
-                         std::size_t const entry_idx,
-                         std::size_t const target_idx,
+                         std::uint32_t const via_rank,
+                         std::uint32_t const entry_idx,
+                         std::uint32_t const target_idx,
                          osr::cost_t const& penalty) {
     auto const& new_entry = r_->cch_sc_down_[via_rank][entry_idx].entry_node_;
     auto const& new_exit = r_->cch_sc_up_[via_rank][target_idx].exit_node_;
