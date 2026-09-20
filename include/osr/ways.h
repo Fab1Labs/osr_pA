@@ -434,10 +434,9 @@ struct ways {
 
     // check if the shortcut consists of one (true) or multiple edges (false)
     bool cch_true_edge(cch::packed_shortcut const& sc) const {
-      if (!sc.is_valid()) {
-        utl::fail(
-            "[CCH EDGE CHECK] Got invalid Shortcut in path. Failed unpacking");
-      }
+      utl::verify(
+          sc.is_valid(),
+          "[CCH EDGE CHECK] Got invalid Shortcut in path. Failed unpacking");
 
       if (sc.down_ == 0U && sc.up_ == 0U && sc.via_rank_ == 0U &&
           sc.u_turn_penalty_ == cost_t{0U}) {
