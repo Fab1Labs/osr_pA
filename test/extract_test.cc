@@ -245,67 +245,116 @@ TEST(extract, unpack_bigger_shortcut_forward) {
   extract(false, data_dir, p, {});
   auto w = ways{p, cista::mmap::protection::READ};
 
-  auto const& sc_1_up = w.r_->cch_sc_up_[83][0];  // 83 -> 134
+  std::uint32_t const via_node_1 = 83;
+  std::uint32_t const via_node_2 = 134;
+  std::uint32_t const via_node_3 = 137;
+  std::uint32_t const via_node_4 = 133;
+  std::uint32_t const via_node_5 = 168;
+
+  auto const& sc_1_up =
+      w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(0)];  // 83 -> 134
   auto const path_1_up =
       w.r_->unpack_shortcut<direction::kForward, true>(sc_1_up);
   ASSERT_EQ(path_1_up.size(), 1);
-  ASSERT_EQ(path_1_up[0], sc_1_up.exit_node_);
+  ASSERT_EQ(path_1_up[static_cast<std::uint32_t>(0)], sc_1_up.exit_node_);
 
-  auto const& sc_1_down = w.r_->cch_sc_down_[83][0];
+  auto const& sc_1_down =
+      w.r_->cch_sc_down_[via_node_1][static_cast<std::uint32_t>(0)];
   auto const path_1_down =
       w.r_->unpack_shortcut<direction::kForward, false>(sc_1_down);
   ASSERT_EQ(path_1_down.size(), 1);
-  ASSERT_EQ(path_1_down[0], sc_1_down.exit_node_);
+  ASSERT_EQ(path_1_down[static_cast<std::uint32_t>(0)], sc_1_down.exit_node_);
 
-  auto const& sc_3_up = w.r_->cch_sc_up_[134][2];
+  auto const& sc_3_up =
+      w.r_->cch_sc_up_[via_node_2][static_cast<std::uint32_t>(2)];
   auto const path_3_up =
       w.r_->unpack_shortcut<direction::kForward, true>(sc_3_up);
   ASSERT_EQ(path_3_up.size(), 2);
-  ASSERT_EQ(path_3_up[0], w.r_->cch_sc_down_[83][0].exit_node_);
-  ASSERT_EQ(path_3_up[1], w.r_->cch_sc_up_[83][1].exit_node_);
+  ASSERT_EQ(
+      path_3_up[static_cast<std::uint32_t>(0)],
+      w.r_->cch_sc_down_[via_node_1][static_cast<std::uint32_t>(0)].exit_node_);
+  ASSERT_EQ(
+      path_3_up[static_cast<std::uint32_t>(1)],
+      w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(1)].exit_node_);
 
-  auto const& sc_3_down = w.r_->cch_sc_down_[134][2];
+  auto const& sc_3_down = w.r_->cch_sc_down_[via_node_2][2];
   auto const path_3_down =
       w.r_->unpack_shortcut<direction::kForward, false>(sc_3_down);
   ASSERT_EQ(path_3_up.size(), 2);
-  ASSERT_EQ(path_3_down[0], w.r_->cch_sc_down_[83][1].exit_node_);
-  ASSERT_EQ(path_3_down[1], w.r_->cch_sc_up_[83][0].exit_node_);
+  ASSERT_EQ(
+      path_3_down[static_cast<std::uint32_t>(0)],
+      w.r_->cch_sc_down_[via_node_1][static_cast<std::uint32_t>(1)].exit_node_);
+  ASSERT_EQ(
+      path_3_down[static_cast<std::uint32_t>(1)],
+      w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(0)].exit_node_);
 
-  auto const& sc_8_up = w.r_->cch_sc_up_[137][2];
+  auto const& sc_8_up = w.r_->cch_sc_up_[via_node_3][2];
   auto const path_8_up =
       w.r_->unpack_shortcut<direction::kForward, true>(sc_8_up);
   ASSERT_EQ(path_8_up.size(), 3);
-  ASSERT_EQ(path_8_up[0], w.r_->cch_sc_down_[134][1].exit_node_);
-  ASSERT_EQ(path_8_up[1], w.r_->cch_sc_down_[83][0].exit_node_);
-  ASSERT_EQ(path_8_up[2], w.r_->cch_sc_up_[83][1].exit_node_);
+  ASSERT_EQ(
+      path_8_up[static_cast<std::uint32_t>(0)],
+      w.r_->cch_sc_down_[via_node_2][static_cast<std::uint32_t>(1)].exit_node_);
+  ASSERT_EQ(
+      path_8_up[static_cast<std::uint32_t>(1)],
+      w.r_->cch_sc_down_[via_node_1][static_cast<std::uint32_t>(0)].exit_node_);
+  ASSERT_EQ(
+      path_8_up[static_cast<std::uint32_t>(2)],
+      w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(1)].exit_node_);
 
-  auto const& sc_8_down = w.r_->cch_sc_down_[137][2];
+  auto const& sc_8_down = w.r_->cch_sc_down_[via_node_3][2];
   auto const path_8_down =
       w.r_->unpack_shortcut<direction::kForward, false>(sc_8_down);
   ASSERT_EQ(path_8_down.size(), 3);
-  ASSERT_EQ(path_8_down[0], w.r_->cch_sc_down_[83][1].exit_node_);
-  ASSERT_EQ(path_8_down[1], w.r_->cch_sc_up_[83][0].exit_node_);
-  ASSERT_EQ(path_8_down[2], w.r_->cch_sc_up_[134][1].exit_node_);
+  ASSERT_EQ(
+      path_8_down[static_cast<std::uint32_t>(0)],
+      w.r_->cch_sc_down_[via_node_1][static_cast<std::uint32_t>(1)].exit_node_);
+  ASSERT_EQ(
+      path_8_down[static_cast<std::uint32_t>(1)],
+      w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(0)].exit_node_);
+  ASSERT_EQ(
+      path_8_down[static_cast<std::uint32_t>(2)],
+      w.r_->cch_sc_up_[via_node_2][static_cast<std::uint32_t>(1)].exit_node_);
 
-  auto const& sc_9_up = w.r_->cch_sc_up_[168][5];
+  auto const& sc_9_up = w.r_->cch_sc_up_[via_node_5][5];
   auto const path_9_up =
       w.r_->unpack_shortcut<direction::kForward, true>(sc_9_up);
   ASSERT_EQ(path_9_up.size(), 5);
-  ASSERT_EQ(path_9_up[0], w.r_->cch_sc_down_[83][1].exit_node_);
-  ASSERT_EQ(path_9_up[1], w.r_->cch_sc_up_[83][0].exit_node_);
-  ASSERT_EQ(path_9_up[2], w.r_->cch_sc_up_[134][1].exit_node_);
-  ASSERT_EQ(path_9_up[3], w.r_->cch_sc_down_[133][0].exit_node_);
-  ASSERT_EQ(path_9_up[4], w.r_->cch_sc_up_[133][3].exit_node_);
+  ASSERT_EQ(
+      path_9_up[static_cast<std::uint32_t>(0)],
+      w.r_->cch_sc_down_[via_node_1][static_cast<std::uint32_t>(1)].exit_node_);
+  ASSERT_EQ(
+      path_9_up[static_cast<std::uint32_t>(1)],
+      w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(0)].exit_node_);
+  ASSERT_EQ(
+      path_9_up[static_cast<std::uint32_t>(2)],
+      w.r_->cch_sc_up_[via_node_2][static_cast<std::uint32_t>(1)].exit_node_);
+  ASSERT_EQ(
+      path_9_up[static_cast<std::uint32_t>(3)],
+      w.r_->cch_sc_down_[via_node_4][static_cast<std::uint32_t>(0)].exit_node_);
+  ASSERT_EQ(
+      path_9_up[static_cast<std::uint32_t>(4)],
+      w.r_->cch_sc_up_[via_node_4][static_cast<std::uint32_t>(3)].exit_node_);
 
-  auto const& sc_9_down = w.r_->cch_sc_down_[168][5];
+  auto const& sc_9_down = w.r_->cch_sc_down_[via_node_5][5];
   auto const path_9_down =
       w.r_->unpack_shortcut<direction::kForward, false>(sc_9_down);
   ASSERT_EQ(path_9_down.size(), 5);
-  ASSERT_EQ(path_9_down[0], w.r_->cch_sc_down_[133][3].exit_node_);
-  ASSERT_EQ(path_9_down[1], w.r_->cch_sc_up_[133][0].exit_node_);
-  ASSERT_EQ(path_9_down[2], w.r_->cch_sc_down_[134][1].exit_node_);
-  ASSERT_EQ(path_9_down[3], w.r_->cch_sc_down_[83][0].exit_node_);
-  ASSERT_EQ(path_9_down[4], w.r_->cch_sc_up_[83][1].exit_node_);
+  ASSERT_EQ(
+      path_9_down[static_cast<std::uint32_t>(0)],
+      w.r_->cch_sc_down_[via_node_4][static_cast<std::uint32_t>(3)].exit_node_);
+  ASSERT_EQ(
+      path_9_down[static_cast<std::uint32_t>(1)],
+      w.r_->cch_sc_up_[via_node_4][static_cast<std::uint32_t>(0)].exit_node_);
+  ASSERT_EQ(
+      path_9_down[static_cast<std::uint32_t>(2)],
+      w.r_->cch_sc_down_[via_node_2][static_cast<std::uint32_t>(1)].exit_node_);
+  ASSERT_EQ(
+      path_9_down[static_cast<std::uint32_t>(3)],
+      w.r_->cch_sc_down_[via_node_1][static_cast<std::uint32_t>(0)].exit_node_);
+  ASSERT_EQ(
+      path_9_down[static_cast<std::uint32_t>(4)],
+      w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(1)].exit_node_);
 }
 
 TEST(extract, unpack_bigger_shortcut_backward) {
@@ -322,29 +371,46 @@ TEST(extract, unpack_bigger_shortcut_backward) {
   extract(false, data_dir, p, {});
   auto w = ways{p, cista::mmap::protection::READ};
 
-  auto const& sc_1_up = w.r_->cch_sc_up_[83][0];
+  std::uint32_t const via_node_1 = 83;
+  std::uint32_t const via_node_2 = 134;
+
+  auto const& sc_1_up =
+      w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(0)];
   auto const path_1_up =
       w.r_->unpack_shortcut<direction::kBackward, true>(sc_1_up);
   ASSERT_EQ(path_1_up.size(), 1);
-  ASSERT_EQ(path_1_up[0], w.r_->cch_sc_up_[83][0].entry_node_);
+  ASSERT_EQ(
+      path_1_up[static_cast<std::uint32_t>(0)],
+      w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(0)].entry_node_);
 
-  auto const& sc_1_down = w.r_->cch_sc_down_[83][0];
+  auto const& sc_1_down =
+      w.r_->cch_sc_down_[via_node_1][static_cast<std::uint32_t>(0)];
   auto const path_1_down =
       w.r_->unpack_shortcut<direction::kBackward, false>(sc_1_down);
   ASSERT_EQ(path_1_down.size(), 1);
-  ASSERT_EQ(path_1_down[0], sc_1_down.entry_node_);
+  ASSERT_EQ(path_1_down[static_cast<std::uint32_t>(0)], sc_1_down.entry_node_);
 
-  auto const& sc_3_up = w.r_->cch_sc_up_[134][2];
+  auto const& sc_3_up =
+      w.r_->cch_sc_up_[via_node_2][static_cast<std::uint32_t>(2)];
   auto const path_3_up =
       w.r_->unpack_shortcut<direction::kBackward, true>(sc_3_up);
   ASSERT_EQ(path_3_up.size(), 2);
-  ASSERT_EQ(path_3_up[0], w.r_->cch_sc_down_[83][0].entry_node_);
-  ASSERT_EQ(path_3_up[1], w.r_->cch_sc_up_[83][1].entry_node_);
+  ASSERT_EQ(path_3_up[static_cast<std::uint32_t>(0)],
+            w.r_->cch_sc_down_[via_node_1][static_cast<std::uint32_t>(0)]
+                .entry_node_);
+  ASSERT_EQ(
+      path_3_up[static_cast<std::uint32_t>(1)],
+      w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(1)].entry_node_);
 
-  auto const& sc_3_down = w.r_->cch_sc_down_[134][2];
+  auto const& sc_3_down =
+      w.r_->cch_sc_down_[via_node_2][static_cast<std::uint32_t>(2)];
   auto const path_3_down =
       w.r_->unpack_shortcut<direction::kBackward, false>(sc_3_down);
   ASSERT_EQ(path_3_down.size(), 2);
-  ASSERT_EQ(path_3_down[0], w.r_->cch_sc_down_[83][1].entry_node_);
-  ASSERT_EQ(path_3_down[1], w.r_->cch_sc_up_[83][0].entry_node_);
+  ASSERT_EQ(path_3_down[static_cast<std::uint32_t>(0)],
+            w.r_->cch_sc_down_[via_node_1][static_cast<std::uint32_t>(1)]
+                .entry_node_);
+  ASSERT_EQ(
+      path_3_down[static_cast<std::uint32_t>(1)],
+      w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(0)].entry_node_);
 }
