@@ -295,7 +295,7 @@ TEST(dijkstra_astarbidir, DISABLED_germany) {
   run<false>(w, l, num_samples, max_cost, dir);
 }
 
-TEST(dijkstra_astarbidir, karlsruhe_kirchfeld) {
+TEST(dijkstra_astarbidir, cch_karlsruhe_kirchfeld) {
   auto const raw_data = "test/karlsruhe-kirchfeld.osm.pbf";
   auto const data_dir = "test/karlsruhe-kirchfeld";
   auto const num_samples = 500U;
