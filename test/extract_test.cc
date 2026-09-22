@@ -168,66 +168,41 @@ TEST(extract, pack_shortcuts) {
       auto const& sc_up = w.r_->cch_sc_up_[rank][t_idx];
       auto const& sc_down = w.r_->cch_sc_down_[rank][t_idx];
 
-      utl::verify(w.r_->node_importance_[target] > rank,
-                  "[TARGET RANK VERIFY] Found importance {} of {} as target of "
-                  "node {} ({})",
-                  w.r_->node_importance_[target], w.node_to_osm_[target],
-                  w.node_to_osm_[node], rank);
+      ASSERT_TRUE(w.r_->node_importance_[target] > rank);
 
-      utl::verify((!sc_up.is_valid() && cost_up == osr::kInfeasible) ||
-                      (sc_up.is_valid() && cost_up != osr::kInfeasible),
-                  "[SC COST VERIFY UP] Got cost {} and valid shortcut: {} from "
-                  "{} to {}",
-                  cost_up, sc_up.is_valid(), w.node_to_osm_[node],
-                  w.node_to_osm_[target]);
+      ASSERT_TRUE((!sc_up.is_valid() && cost_up == osr::kInfeasible) ||
+                  (sc_up.is_valid() && cost_up != osr::kInfeasible));
 
-      utl::verify((!sc_down.is_valid() && cost_down == osr::kInfeasible) ||
-                      (sc_down.is_valid() && cost_down != osr::kInfeasible),
-                  "[SC COST VERIFY DOWN] Got cost {} and valid shortcut: {} "
-                  "from {} to {}",
-                  cost_down, sc_down.is_valid(), w.node_to_osm_[node],
-                  w.node_to_osm_[target]);
+      ASSERT_TRUE((!sc_down.is_valid() && cost_down == osr::kInfeasible) ||
+                  (sc_down.is_valid() && cost_down != osr::kInfeasible));
 
-      utl::verify(
+      ASSERT_TRUE(
           (sc_up.entry_node_.n_ == node && sc_up.exit_node_.n_ == target) ||
-              (cost_up == osr::kInfeasible &&
-               sc_up.entry_node_.n_ == osr::node_idx_t::invalid() &&
-               sc_up.exit_node_.n_ == osr::node_idx_t::invalid()),
-          "[SC POINT VERIFY UP] Expected entry {} but got {} and exit {} but "
-          "got {}",
-          w.node_to_osm_[node], w.node_to_osm_[sc_up.entry_node_.n_],
-          w.node_to_osm_[target], w.node_to_osm_[sc_up.exit_node_.n_]);
+          (cost_up == osr::kInfeasible &&
+           sc_up.entry_node_.n_ == osr::node_idx_t::invalid() &&
+           sc_up.exit_node_.n_ == osr::node_idx_t::invalid()));
 
-      // utl::verify(
-      //     (sc_down.entry_node_.n_ == target && sc_down.exit_node_.n_ == node)
-      //     ||
-      //         (cost_down == osr::kInfeasible &&
-      //          sc_down.entry_node_.n_ == osr::node_idx_t::invalid() &&
-      //          sc_down.exit_node_.n_ == osr::node_idx_t::invalid()),
-      //     "[SC POINT VERIFY DOWN] Expected entry {} but got {} and exit {}
-      //     but " "got {}", w.node_to_osm_[target],
-      //     w.node_to_osm_[sc_down.entry_node_.n_], w.node_to_osm_[node],
-      //     w.node_to_osm_[sc_down.exit_node_.n_]);
+      ASSERT_TRUE(
+          (sc_down.entry_node_.n_ == target && sc_down.exit_node_.n_ == node) ||
+          (cost_down == osr::kInfeasible &&
+           sc_down.entry_node_.n_ == osr::node_idx_t::invalid() &&
+           sc_down.exit_node_.n_ == osr::node_idx_t::invalid()));
     }
 
     for (auto [way_pos64, way] : utl::enumerate(w.r_->node_ways_[node])) {
       auto const way_pos = static_cast<std::uint32_t>(way_pos64);
-      utl::verify(
+
+      ASSERT_TRUE(
           w.r_->node_ways_[node].size() == w.r_->cch_sc_self_[rank].size() &&
-              w.r_->node_ways_[node].size() ==
-                  w.r_->cch_cost_self_[rank].size(),
-          "[SELF SIZE VERIFY] Expected {} self shortcuts but got {}",
-          w.r_->node_ways_[node].size(), w.r_->cch_sc_self_[rank].size());
+          w.r_->node_ways_[node].size() == w.r_->cch_cost_self_[rank].size());
 
       auto const& self_cost = w.r_->cch_cost_self_[rank][way_pos];
       auto const& self_sc = w.r_->cch_sc_self_[rank][way_pos];
-      utl::verify(
+
+      ASSERT_TRUE(
           (self_sc.entry_node_.n_ == node && self_sc.exit_node_.n_ == node) ||
-              (self_sc.entry_node_.n_ == osr::node_idx_t::invalid() &&
-               self_sc.exit_node_.n_ == osr::node_idx_t::invalid()),
-          "[SELF RANK VERIFY] Expected self node {} but got sc from {} to {}",
-          w.node_to_osm_[node], w.node_to_osm_[self_sc.entry_node_.n_],
-          w.node_to_osm_[self_sc.exit_node_.n_]);
+          (self_sc.entry_node_.n_ == osr::node_idx_t::invalid() &&
+           self_sc.exit_node_.n_ == osr::node_idx_t::invalid()));
     }
   }
 }
