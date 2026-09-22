@@ -82,7 +82,7 @@ TEST(extract, contraction_order) {
 }
 
 TEST(extract, test_packed_and_unpacked_costs) {
-  auto const data_dir = "test/aachen.osm.pbf";
+  auto const data_dir = "test/darmstadt-bismarckstr.osm.pbf";
   auto p = fs::temp_directory_path() / "osr_test";
   auto ec = std::error_code{};
   fs::remove_all(p, ec);
@@ -227,6 +227,14 @@ TEST(extract, unpack_bigger_shortcut_forward) {
   std::uint32_t const via_node_4 = 133;
   std::uint32_t const via_node_5 = 168;
 
+  if (w.r_->contraction_order_[via_node_1] != osr::node_idx_t{222} ||
+      w.r_->contraction_order_[via_node_2] != osr::node_idx_t{226} ||
+      w.r_->contraction_order_[via_node_3] != osr::node_idx_t{199} ||
+      w.r_->contraction_order_[via_node_4] != osr::node_idx_t{214} ||
+      w.r_->contraction_order_[via_node_5] != osr::node_idx_t{188}) {
+    GTEST_SKIP() << data_dir << " with invalid version";
+  }
+
   auto const& sc_1_up =
       w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(0)];  // 83 -> 134
   auto const path_1_up =
@@ -349,6 +357,11 @@ TEST(extract, unpack_bigger_shortcut_backward) {
 
   std::uint32_t const via_node_1 = 83;
   std::uint32_t const via_node_2 = 134;
+
+  if (w.r_->contraction_order_[via_node_1] != osr::node_idx_t{222} ||
+      w.r_->contraction_order_[via_node_2] != osr::node_idx_t{226}) {
+    GTEST_SKIP() << data_dir << " with invalid version";
+  }
 
   auto const& sc_1_up =
       w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(0)];
