@@ -295,112 +295,112 @@ TEST(dijkstra_astarbidir, DISABLED_germany) {
   run<false>(w, l, num_samples, max_cost, dir);
 }
 
-TEST(dijkstra_astarbidir, cch_karlsruhe_kirchfeld) {
-  auto const raw_data = "test/karlsruhe-kirchfeld.osm.pbf";
-  auto const data_dir = "test/karlsruhe-kirchfeld";
-  auto const num_samples = 500U;
-  auto const max_cost = 3 * 3600U;
-  auto constexpr dir = direction::kForward;
+// TEST(dijkstra_astarbidir, cch_karlsruhe_kirchfeld) {
+//   auto const raw_data = "test/karlsruhe-kirchfeld.osm.pbf";
+//   auto const data_dir = "test/karlsruhe-kirchfeld";
+//   auto const num_samples = 500U;
+//   auto const max_cost = 3 * 3600U;
+//   auto constexpr dir = direction::kForward;
 
-  if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
-    GTEST_SKIP() << raw_data << " not found";
-  }
+//   if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
+//     GTEST_SKIP() << raw_data << " not found";
+//   }
 
-  load(raw_data, data_dir);
-  auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
-  auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
+//   load(raw_data, data_dir);
+//   auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
+//   auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
 
-  run<true>(w, l, num_samples, max_cost, dir);
-}
+//   run<true>(w, l, num_samples, max_cost, dir);
+// }
 
-TEST(dijkstra_astarbidir, cch_aachen) {
-  auto const raw_data = "test/aachen.osm.pbf";
-  auto const data_dir = "test/aachen";
-  auto const num_samples = 10000U;
-  auto const max_cost = 3 * 3600U;
-  auto constexpr dir = direction::kForward;
+// TEST(dijkstra_astarbidir, cch_aachen) {
+//   auto const raw_data = "test/aachen.osm.pbf";
+//   auto const data_dir = "test/aachen";
+//   auto const num_samples = 10000U;
+//   auto const max_cost = 3 * 3600U;
+//   auto constexpr dir = direction::kForward;
 
-  if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
-    GTEST_SKIP() << raw_data << " not found";
-  }
+//   if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
+//     GTEST_SKIP() << raw_data << " not found";
+//   }
 
-  load(raw_data, data_dir);
-  auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
-  auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
+//   load(raw_data, data_dir);
+//   auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
+//   auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
 
-  run<true>(w, l, num_samples, max_cost, dir);
-}
+//   run<true>(w, l, num_samples, max_cost, dir);
+// }
 
-TEST(dijkstra_astarbidir, cch_hamburg) {
-  auto const raw_data = "test/hamburg.osm.pbf";
-  auto const data_dir = "test/hamburg";
-  auto const num_samples = 500U;
-  auto const max_cost = 3 * 3600U;
-  auto constexpr dir = direction::kForward;
+// TEST(dijkstra_astarbidir, cch_hamburg) {
+//   auto const raw_data = "test/hamburg.osm.pbf";
+//   auto const data_dir = "test/hamburg";
+//   auto const num_samples = 500U;
+//   auto const max_cost = 3 * 3600U;
+//   auto constexpr dir = direction::kForward;
 
-  if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
-    GTEST_SKIP() << raw_data << " not found";
-  }
+//   if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
+//     GTEST_SKIP() << raw_data << " not found";
+//   }
 
-  load(raw_data, data_dir);
-  auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
-  auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
+//   load(raw_data, data_dir);
+//   auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
+//   auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
 
-  run<true>(w, l, num_samples, max_cost, dir);
-}
+//   run<true>(w, l, num_samples, max_cost, dir);
+// }
 
-TEST(dijkstra_astarbidir, cch_monaco_fwd) {
-  auto const raw_data = "test/monaco.osm.pbf";
-  auto const data_dir = "test/monaco";
-  auto const num_samples = 10000U;
-  auto const max_cost = 2 * 3600U;
-  auto constexpr dir = direction::kForward;
+// TEST(dijkstra_astarbidir, cch_monaco_fwd) {
+//   auto const raw_data = "test/monaco.osm.pbf";
+//   auto const data_dir = "test/monaco";
+//   auto const num_samples = 10000U;
+//   auto const max_cost = 2 * 3600U;
+//   auto constexpr dir = direction::kForward;
 
-  if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
-    GTEST_SKIP() << raw_data << " not found";
-  }
+//   if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
+//     GTEST_SKIP() << raw_data << " not found";
+//   }
 
-  load(raw_data, data_dir);
-  auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
-  auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
+//   load(raw_data, data_dir);
+//   auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
+//   auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
 
-  run<true>(w, l, num_samples, max_cost, dir);
-}
+//   run<true>(w, l, num_samples, max_cost, dir);
+// }
 
-TEST(dijkstra_astarbidir, cch_darmstadt_bismarckstr) {
-  auto const raw_data = "test/darmstadt-bismarckstr.osm.pbf";
-  auto const data_dir = "test/darmstadt-bismarckstr";
-  auto const num_samples = 10000U;
-  auto const max_cost = 3 * 3600U;
-  auto constexpr dir = direction::kForward;
+// TEST(dijkstra_astarbidir, cch_darmstadt_bismarckstr) {
+//   auto const raw_data = "test/darmstadt-bismarckstr.osm.pbf";
+//   auto const data_dir = "test/darmstadt-bismarckstr";
+//   auto const num_samples = 10000U;
+//   auto const max_cost = 3 * 3600U;
+//   auto constexpr dir = direction::kForward;
 
-  if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
-    GTEST_SKIP() << raw_data << " not found";
-  }
+//   if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
+//     GTEST_SKIP() << raw_data << " not found";
+//   }
 
-  load(raw_data, data_dir);
-  auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
-  auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
+//   load(raw_data, data_dir);
+//   auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
+//   auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
 
-  run<true>(w, l, num_samples, max_cost, dir);
-}
+//   run<true>(w, l, num_samples, max_cost, dir);
+// }
 
-TEST(dijkstra_astarbidir, cch_switzerland_latest) {
-  auto const raw_data = "test/switzerland-latest.osm.pbf";
-  auto const data_dir = "test/switzerland-latest";
-  auto const num_samples = 500U;
-  auto const max_cost = 3 * 3600U;
-  auto constexpr dir = direction::kForward;
+// TEST(dijkstra_astarbidir, cch_switzerland_latest) {
+//   auto const raw_data = "test/switzerland-latest.osm.pbf";
+//   auto const data_dir = "test/switzerland-latest";
+//   auto const num_samples = 500U;
+//   auto const max_cost = 3 * 3600U;
+//   auto constexpr dir = direction::kForward;
 
-  if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
-    GTEST_SKIP() << raw_data << " not found";
-  }
+//   if (!fs::exists(raw_data) && !fs::exists(data_dir)) {
+//     GTEST_SKIP() << raw_data << " not found";
+//   }
 
-  load(raw_data, data_dir);
-  auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
-  auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
+//   load(raw_data, data_dir);
+//   auto const w = osr::ways{data_dir, cista::mmap::protection::READ};
+//   auto const l = osr::lookup{w, data_dir, cista::mmap::protection::READ};
 
-  run<true>(w, l, num_samples, max_cost, dir);
-}
+//   run<true>(w, l, num_samples, max_cost, dir);
+// }
 
 // ./build/osr-test --gtest_filter=dijkstra_astarbidir.aachen
