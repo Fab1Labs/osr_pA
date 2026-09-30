@@ -566,7 +566,8 @@ struct rel_ways_handler : public osm::handler::Handler {
 void extract(bool const with_platforms,
              fs::path const& in,
              fs::path const& out,
-             fs::path const& elevation_dir) {
+             fs::path const& elevation_dir,
+             bool const with_cch) {
   auto ec = std::error_code{};
   fs::remove_all(out, ec);
 
@@ -684,7 +685,7 @@ void extract(bool const with_platforms,
     pt->update(pt->in_high_);
   }
 
-  w.build_components_and_importance();
+  w.build_components_and_importance(with_cch);
   w.add_restriction(r);
 
   utl::sort(w.r_->multi_level_elevators_);
@@ -707,23 +708,25 @@ void extract(bool const with_platforms,
   w.compute_big_street_neighbors();
 
   pt->status("CCH Preprocessing").in_high(w.n_ways()).out_bounds(96, 97);
-  auto contraction = cch::contraction{w.r_};
-  contraction.build_contraction_order();
-  contraction.init_neighborhoods();
-  contraction.contract_nodes();
+  if (with_cch) {
+    auto contraction = cch::contraction{w.r_};
+    contraction.build_contraction_order();
+    contraction.init_neighborhoods();
+    contraction.contract_nodes();
+  }
 
   // Prepare the CCH customization for the car profile here (contraction):
-  pt->status("CCH Preparation Customization")
-      .in_high(w.n_ways())
-      .out_bounds(97, 98);
-  auto profile = search_profile::kCar;
-  auto params = get_parameters(profile);
-  auto customization = cch::customization{w.r_};
-  customization.get_cch_edges(profile, params);
+  pt->status("CCH Customization").in_high(w.n_ways()).out_bounds(97, 99);
+  if (with_cch) {
+    auto profile = search_profile::kCar;
+    auto params = get_parameters(profile);
+    auto customization = cch::customization{w.r_};
+    customization.get_cch_edges(profile, params);
 
-  // customize the shortcuts for the car profile here:
-  pt->status("CCH Customization").in_high(w.n_ways()).out_bounds(98, 99);
-  customization.customize_shortcuts<true, false>(profile, params);
+    // customize the shortcuts for the car profile here:
+    customization.customize_shortcuts<true, false>(profile, params);
+  }
+
   w.r_->write(out);
 
   pt->status("Build R-Tree").in_high(1).out_bounds(99, 100);

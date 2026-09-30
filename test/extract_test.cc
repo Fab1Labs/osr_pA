@@ -66,7 +66,7 @@ TEST(extract, contraction_order) {
     GTEST_SKIP() << data_dir << " not found";
   }
 
-  extract(false, data_dir, p, {});
+  extract(false, data_dir, p, {}, true);
 
   auto w = ways{p, cista::mmap::protection::READ};
   auto mip = cch::contraction{w.r_};
@@ -92,7 +92,7 @@ TEST(extract, test_packed_and_unpacked_costs) {
     GTEST_SKIP() << data_dir << " not found";
   }
 
-  extract(false, data_dir, p, {});
+  extract(false, data_dir, p, {}, true);
   auto w = ways{p, cista::mmap::protection::READ};
 
   for (auto const [rank64, node] : utl::enumerate(w.r_->contraction_order_)) {
@@ -157,7 +157,7 @@ TEST(extract, pack_shortcuts) {
     GTEST_SKIP() << data_dir << " not found";
   }
 
-  extract(false, data_dir, p, {});
+  extract(false, data_dir, p, {}, true);
   auto w = ways{p, cista::mmap::protection::READ};
   for (auto const [rank64, node] : utl::enumerate(w.r_->contraction_order_)) {
     auto const rank = static_cast<std::uint32_t>(rank64);
@@ -218,7 +218,7 @@ TEST(extract, unpack_bigger_shortcut_forward) {
     GTEST_SKIP() << data_dir << " not found";
   }
 
-  extract(false, data_dir, p, {});
+  extract(false, data_dir, p, {}, true);
   auto w = ways{p, cista::mmap::protection::READ};
 
   std::uint32_t const via_node_1 = 83;
@@ -352,7 +352,7 @@ TEST(extract, unpack_bigger_shortcut_backward) {
     GTEST_SKIP() << data_dir << " not found";
   }
 
-  extract(false, data_dir, p, {});
+  extract(false, data_dir, p, {}, true);
   auto w = ways{p, cista::mmap::protection::READ};
 
   std::uint32_t const via_node_1 = 83;

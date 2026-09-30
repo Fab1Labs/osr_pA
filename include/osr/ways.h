@@ -202,7 +202,7 @@ struct ways {
   void compute_big_street_neighbors();
   void connect_ways();
   void compute_turn_bearings();
-  void build_components_and_importance();
+  void build_components_and_importance(bool const with_cch);
 
   std::optional<way_idx_t> find_way(osm_way_idx_t const i) {
     auto const it = std::lower_bound(begin(way_osm_idx_), end(way_osm_idx_), i);
