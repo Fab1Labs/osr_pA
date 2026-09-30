@@ -95,7 +95,8 @@ TEST(extract, bus_only_on_highway) {
 //   extract(false, data_dir, p, {}, true);
 //   auto w = ways{p, cista::mmap::protection::READ};
 
-//   for (auto const [rank64, node] : utl::enumerate(w.r_->contraction_order_)) {
+//   for (auto const [rank64, node] : utl::enumerate(w.r_->contraction_order_))
+//   {
 //     auto const rank = static_cast<std::uint32_t>(rank64);
 //     for (auto const [t_idx64, target] :
 //          utl::enumerate(w.r_->sc_targets_[rank])) {
@@ -138,8 +139,8 @@ TEST(extract, bus_only_on_highway) {
 
 //       for (std::uint32_t i = 1; i < path_down.size(); ++i) {
 //         single_costs += w.r_->get_edge_cost<false>(
-//             path_down[i - 1].n_, path_down[i - 1].way_, path_down[i - 1].dir_,
-//             path_down[i].n_, cost_t{120U});
+//             path_down[i - 1].n_, path_down[i - 1].way_, path_down[i -
+//             1].dir_, path_down[i].n_, cost_t{120U});
 //       }
 //       ASSERT_EQ(single_costs, expected_cost);
 //     }
@@ -159,7 +160,8 @@ TEST(extract, bus_only_on_highway) {
 
 //   extract(false, data_dir, p, {}, true);
 //   auto w = ways{p, cista::mmap::protection::READ};
-//   for (auto const [rank64, node] : utl::enumerate(w.r_->contraction_order_)) {
+//   for (auto const [rank64, node] : utl::enumerate(w.r_->contraction_order_))
+//   {
 //     auto const rank = static_cast<std::uint32_t>(rank64);
 //     for (auto [t_idx64, target] : utl::enumerate(w.r_->sc_targets_[rank])) {
 //       auto const t_idx = static_cast<std::uint32_t>(t_idx64);
@@ -183,8 +185,8 @@ TEST(extract, bus_only_on_highway) {
 //            sc_up.exit_node_.n_ == osr::node_idx_t::invalid()));
 
 //       ASSERT_TRUE(
-//           (sc_down.entry_node_.n_ == target && sc_down.exit_node_.n_ == node) ||
-//           (cost_down == osr::kInfeasible &&
+//           (sc_down.entry_node_.n_ == target && sc_down.exit_node_.n_ == node)
+//           || (cost_down == osr::kInfeasible &&
 //            sc_down.entry_node_.n_ == osr::node_idx_t::invalid() &&
 //            sc_down.exit_node_.n_ == osr::node_idx_t::invalid()));
 //     }
@@ -194,14 +196,15 @@ TEST(extract, bus_only_on_highway) {
 
 //       ASSERT_TRUE(
 //           w.r_->node_ways_[node].size() == w.r_->cch_sc_self_[rank].size() &&
-//           w.r_->node_ways_[node].size() == w.r_->cch_cost_self_[rank].size());
+//           w.r_->node_ways_[node].size() ==
+//           w.r_->cch_cost_self_[rank].size());
 
 //       auto const& self_cost = w.r_->cch_cost_self_[rank][way_pos];
 //       auto const& self_sc = w.r_->cch_sc_self_[rank][way_pos];
 
 //       ASSERT_TRUE(
-//           (self_sc.entry_node_.n_ == node && self_sc.exit_node_.n_ == node) ||
-//           (self_sc.entry_node_.n_ == osr::node_idx_t::invalid() &&
+//           (self_sc.entry_node_.n_ == node && self_sc.exit_node_.n_ == node)
+//           || (self_sc.entry_node_.n_ == osr::node_idx_t::invalid() &&
 //            self_sc.exit_node_.n_ == osr::node_idx_t::invalid()));
 //     }
 //   }
@@ -236,7 +239,8 @@ TEST(extract, bus_only_on_highway) {
 //   }
 
 //   auto const& sc_1_up =
-//       w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(0)];  // 83 -> 134
+//       w.r_->cch_sc_up_[via_node_1][static_cast<std::uint32_t>(0)];  // 83 ->
+//       134
 //   auto const path_1_up =
 //       w.r_->unpack_shortcut<direction::kForward, true>(sc_1_up);
 //   ASSERT_EQ(path_1_up.size(), 1);
@@ -247,7 +251,8 @@ TEST(extract, bus_only_on_highway) {
 //   auto const path_1_down =
 //       w.r_->unpack_shortcut<direction::kForward, false>(sc_1_down);
 //   ASSERT_EQ(path_1_down.size(), 1);
-//   ASSERT_EQ(path_1_down[static_cast<std::uint32_t>(0)], sc_1_down.exit_node_);
+//   ASSERT_EQ(path_1_down[static_cast<std::uint32_t>(0)],
+//   sc_1_down.exit_node_);
 
 //   auto const& sc_3_up =
 //       w.r_->cch_sc_up_[via_node_2][static_cast<std::uint32_t>(2)];
@@ -377,7 +382,8 @@ TEST(extract, bus_only_on_highway) {
 //   auto const path_1_down =
 //       w.r_->unpack_shortcut<direction::kBackward, false>(sc_1_down);
 //   ASSERT_EQ(path_1_down.size(), 1);
-//   ASSERT_EQ(path_1_down[static_cast<std::uint32_t>(0)], sc_1_down.entry_node_);
+//   ASSERT_EQ(path_1_down[static_cast<std::uint32_t>(0)],
+//   sc_1_down.entry_node_);
 
 //   auto const& sc_3_up =
 //       w.r_->cch_sc_up_[via_node_2][static_cast<std::uint32_t>(2)];
